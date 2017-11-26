@@ -1,0 +1,88 @@
+<style>
+body {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 14px;
+}
+</style>
+<body>
+<h1>PC Status Controller</h1>
+
+<div id="receivedContent"><img src="/loading.gif"></img></div>
+
+<div id="buttons">
+  <button class="mybuttons" onclick="sendAction('press-power')">Press Power</button>
+  <button class="mybuttons" onclick="sendAction('hold-power')">Hold Power</button>
+  <button class="mybuttons" onclick="sendAction('press-reset')">Press Reset</button>
+  <button class="mybuttons" onclick="sendAction('wake')">Wake</button>
+</div>
+<div id="response"></div>
+</body>
+<script>
+var interval = setInterval(getInfo, 5000);
+var timeout = setTimeout(getInfo, 1000);
+var content = document.getElementById('receivedContent');
+var response = document.getElementById('response');
+var buttons = document.getElementsByClassName('mybuttons');
+buttonsEnabled(false);
+var userLevel = 0;
+
+function sendAction(action) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', "https://dev.campbellcrowley.com/secure/pc/" + action);
+  xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+  xhr.onload = function() {
+    updateResponse(xhr.responseText);
+    setTimeout(getInfo, 500);
+    setTimeout(function(){response.innerHTML = ""}, 3000);
+  };
+  xhr.send();
+}
+function getInfo() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', "https://dev.campbellcrowley.com/secure/pc/get-info");
+  xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+  xhr.onload = function() {
+    updateContent(xhr.responseText);
+    buttonsEnabled(userLevel >= 5);
+  };
+  xhr.send();
+}
+function buttonsEnabled(state) {
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].disabled = !state;
+  }
+}
+function updateResponse(data) {
+  response.innerHTML = data.replaceAll('\n', '<br>');
+}
+function updateContent(data) {
+  content.innerHTML =
+      data.replaceAll('\n', '<br>')
+          .replace("STATE--: On",
+                   "<a style=\"background-color:lime;\">STATE--: On</a>")
+          .replace("STATE--: Off",
+                   "<a style=\"background-color:red;\">STATE--: Off</a>");
+}
+updateUserLevel();
+function updateUserLevel() { userLevel = Number(getCookie("userLevel")); }
+console.log("User Level: " + userLevel);
+function getCookie(name) {
+  name += "=";
+  var decodedCookie = decodeURIComponent(document.cookie);
+  var ca = decodedCookie.split(';');
+  for (var i = 0; i < ca.length; i++) {
+    var c = ca[i];
+    while (c.charAt(0) == ' ') {
+      c = c.substring(1);
+    }
+    if (c.indexOf(name) == 0) {
+      return c.substring(name.length, c.length);
+    }
+  }
+  return "";
+}
+String.prototype.replaceAll = function(search, replacement) {
+  var target = this;
+  return target.replace(new RegExp(search, 'g'), replacement);
+};
+</script>
