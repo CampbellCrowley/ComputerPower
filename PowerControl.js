@@ -180,12 +180,18 @@ function puts(error, stdout, stderr) { console.log(stdout) }
 
 function getWeekSummary() {
   var day = [0, 0, 0, 0, 0, 0, 0];
+  var dayTotal = [0, 0, 0, 0, 0, 0, 0];
 
   for (var i = 0; i < lengthOfDay * 7; i++) {
     day[statusHistoryTimestampsDOW[i]] += statusHistory[i];
+    dayTotal[statusHistoryTimestampsDOW[i]] ++;
   }
   for (var i = 0; i < day.length; i++) {
-    day[i] = pad(day[i] / lengthOfDay * 100.0, 5);
+    if (dayTotal[i] == 0) {
+      day[i] = "0.000";
+    } else {
+      day[i] = pad(day[i] / dayTotal[i] * 100.0, 5);
+    }
   }
   return day;
 }
@@ -200,7 +206,7 @@ function pad(num, digits) {
 }
 
 interval = setInterval(function() {
-  var now = new Date().getTime();
+  var now = Date.now();
   if (statusHistoryTimestamps[currentIndex] === undefined ||
       statusHistoryTimestamps[currentIndex] < now - 2000) {
     previousIndex = currentIndex;
@@ -220,7 +226,7 @@ interval = setInterval(function() {
       }
       lastStateChange = now;
       formattedLastStateChange =
-          dateFormat(new Date(lastStateChange), "ddd mm-dd HH:MM:ss");
+          dateFormat(lastStateChange, "ddd mm-dd HH:MM:ss");
       if (currentState == "On") {
         sendEventToTopic("notification_power_on");
       } else {
