@@ -1,4 +1,5 @@
 var http = require('http');
+var https = require('https');
 var app = http.createServer(handler);
 var fs = require('fs');
 var dateFormat = require('dateformat');
@@ -18,12 +19,18 @@ var powerState = false;
 var resetState = false;
 var releaseTime = 0;
 var initialTime = 0;
+var formattedInitialTime = "Unknown";
 var lastStateChange = 0;
+var formattedLastStateChange = "Unknown";
 var lastGetInfo = 0;
+const historyTemplate = "Sunday_____________-->___________Saturday\n%SUMMARY%%MISSING%\nPrevious state change at %STATECHANGE%\nHistory Start: %HISTORYSTART%\nServer Start: %SERVERSTART%\nSaving in %SAVETIMER%m\nNow: %NOW%\nPrevious Event: %PREVIOUSACTION% at %PREVIOUSTIME%\nSTATE--: %STATENOW%";
 var history = "";
+var missing = "";
 var nextWriteTime = new Date().getTime() + 1800000;
 var previousAction = "Server Start";
 var previousActionStart = new Date().getTime();
+var formattedPreviousActionStart =
+    dateFormat(previousActionStart, "ddd mm-dd HH:MM:ss");
 
 var Gpio = onoff.Gpio;
 var power = new Gpio(24, 'out');
@@ -39,6 +46,7 @@ var Request404 = {
 };
 var date = dateFormat(new Date(), "mm-dd HH:MM:ss");
 var startDate = date;
+var formattedStartDate = dateFormat(startDate, "ddd mm-dd HH:MM:ss");
 
 app.listen(84);
 
@@ -50,119 +58,110 @@ app.on('error', function(e) { console.log(e); });
 
 loadData();
 
+function callbackCaller(callback) {
+  setTimeout(callback);
+}
 function handler (req, res) {
-  var ip =
-      req.headers['x-forwarded-for'] || req.connection.remoteAddress || "ERRR";
-  updatePrefix(ip);
-  var filename = req.url;
-  filename = filename.replace('/mobile', '/');
-  filename = filename.replace('/m', '/');
-  filename = filename.replace('/pc/', '/');
+  callbackCaller(function() {
+    var ip =
+        req.headers['x-forwarded-for'] || req.connection.remoteAddress || "ERRR";
+    updatePrefix(ip);
+    var filename = req.url;
+    filename = filename.replace('/mobile', '/');
+    filename = filename.replace('/m', '/');
+    filename = filename.replace('/pc/', '/');
 
-  console.log(prefix + "Request: " + filename);
-  if (filename.indexOf("get-current") == 1) {
-    res.writeHead(200);
-    res.end(currentState);
-    // get current status (on/off)
-  } else if (filename.indexOf("get-history") == 1) {
-    res.writeHead(200);
-    res.end(statusHistory + "\n" + statusHistoryTimestamps + "\n" +
-            statusHistoryTimestampsDOW + "\n" + currentIndex + "/" +
-            statusHistory.length);
-  } else if (filename.indexOf("get-info") == 1) {
-    getInfo(function() {
+    console.log(prefix + "Request: " + filename);
+    if (filename.indexOf("get-current") == 1) {
       res.writeHead(200);
-      res.end(history);
-    });
-  } else if (filename.indexOf("press-power") == 1) {
-    pressPower(200);
+      res.end(currentState);
+      // get current status (on/off)
+    } else if (filename.indexOf("get-history") == 1) {
+      res.writeHead(200);
+      res.end(statusHistory + "\n" + statusHistoryTimestamps + "\n" +
+              statusHistoryTimestampsDOW + "\n" + currentIndex + "/" +
+              statusHistory.length);
+    } else if (filename.indexOf("get-info") == 1) {
+      getInfo(function() {
+        res.writeHead(200);
+        res.end(history);
+      });
+    } else if (filename.indexOf("press-power") == 1) {
+      pressPower(200);
 
-    res.writeHead(200);
-    res.end("Pressed Power");
-    // Press the power button briefly
-  } else if (filename.indexOf("hold-power") == 1) {
-    pressPower(5000);
+      res.writeHead(200);
+      res.end("Pressed Power");
+      sendEventToTopic("notification_power_pressed");
+      // Press the power button briefly
+    } else if (filename.indexOf("hold-power") == 1) {
+      pressPower(5000);
 
-    res.writeHead(200);
-    res.end("Held Power");
-    // Hold the power button until poweroff
-  } else if (filename.indexOf("press-reset") == 1) {
-    pressReset(200);
+      res.writeHead(200);
+      res.end("Held Power");
+      sendEventToTopic("notification_power_held");
+      // Hold the power button until poweroff
+    } else if (filename.indexOf("press-reset") == 1) {
+      pressReset(200);
 
-    res.writeHead(200);
-    res.end("Pressed Reset");
-    // Press the reset button
-  } else if (filename.indexOf("wake") == 1) {
-    exec("wakeonlan 78:24:AF:45:2F:6E", puts);
-    res.writeHead(200);
-    res.end("Sent magic packet to computer");
-    previousAction = "Sent magic packet to computer";
-    previousActionStart = new Date();
-  } else if (filename.indexOf("index.html") == 1) {
-    common.getFile(__dirname + "/index.html", res, "text/html");
-    console.log(prefix + "Served index.html");
-  } else {
-    http.get(Request404, function(response) {
-          var content = '';
-          response.on('data', function(chunk) { content += chunk; });
-          response.on('end', function() {
-            res.writeHead(404);
-            console.log(prefix + "Served 404.html " + content.length);
-            if (content !== undefined) res.end(content);
-            else res.end("404");
-          });
-          response.on('close', function() {
-            console.log(prefix + "404 request closed! " + content.length);
-            res.writeHead(404);
-            res.end("404");
-          });
-          response.on('error', function() {
-            console.log(prefix + "404 request errored! " + content.length);
-            res.writeHead(404);
-            res.end("404");
-          });
-        }).end();
-  }
+      res.writeHead(200);
+      res.end("Pressed Reset");
+      sendEventToTopic("notification_reset_pressed");
+      // Press the reset button
+    } else if (filename.indexOf("wake") == 1) {
+      exec("wakeonlan 78:24:AF:45:2F:6E", puts);
+      res.writeHead(200);
+      res.end("Sent magic packet to computer");
+      previousAction = "Sent magic packet to computer";
+      previousActionStart = new Date();
+      formattedPreviousActionStart =
+          dateFormat(previousActionStart, "ddd mm-dd HH:MM:ss");
+      sendEventToTopic("notification_wake_event");
+    } else if (filename.indexOf("index.html") == 1) {
+      common.getFile(__dirname + "/index.html", res, "text/html");
+      console.log(prefix + "Served index.html");
+    } else {
+      http.get(Request404, function(response) {
+            var content = '';
+            response.on('data', function(chunk) { content += chunk; });
+            response.on('end', function() {
+              res.writeHead(404);
+              console.log(prefix + "Served 404.html " + content.length);
+              if (content !== undefined) res.end(content);
+              else res.end("404");
+            });
+            response.on('close', function() {
+              console.log(prefix + "404 request closed! " + content.length);
+              res.writeHead(404);
+              res.end("404");
+            });
+            response.on('error', function() {
+              console.log(prefix + "404 request errored! " + content.length);
+              res.writeHead(404);
+              res.end("404");
+            });
+          }).end();
+    }
+  });
 }
 
 function getInfo(callback) {
   // Get the powerstate for the last period of time
   var now = new Date().getTime();
-  if (lastGetInfo + 2000 > now) {
+  if (lastGetInfo + 3000 > now) {
     console.log(prefix + "Serving cached history.");
   } else {
     lastGetInfo = now;
-    history = "Sunday_____________-->___________Saturday\n";
-    history += getWeekSummary() + "\n";
-    var spaces = statusHistoryTimestampsDOW[currentIndex] * 6.0 +
-                 new Date(statusHistoryTimestamps[currentIndex]).getHours() / 4;
-    for (var i = 1; i < spaces; i++) {
-      history += "-";
-    }
-    history += "^";
-
-    for (var i = 1; i < statusHistoryTimestamps.length; i++) {
-      var current = Number(statusHistoryTimestamps[i]);
-      var previous = Number(statusHistoryTimestamps[i - 1]);
-      if (previous > 0 && current > 0 && current - previous > 300000) {
-        history += "\nMissing history from " +
-                   dateFormat(previous, "ddd HH:MM:ss") + " to " +
-                   dateFormat(current, "ddd HH:MM:ss");
-      }
-    }
-    if (lastStateChange != initialTime) {
-      history += "\nPrevious state change at " +
-                 dateFormat(new Date(lastStateChange), "ddd mm-dd HH:MM:ss");
-    } else {
-      history += "\n";
-    }
-    history += "\nServer Start: " + dateFormat(startDate, "ddd mm-dd HH:MM:ss");
-    history +=
-        "\nSaving in " + pad((nextWriteTime - now) / 1000 / 60, 5) + "mins";
-    history += "\nNow: " + new Date(now);
-    history += "\nPrevious Event: " + previousAction + " at " +
-        dateFormat(previousActionStart, "ddd mm-dd HH:MM:ss");
-    history += "\nSTATE--: " + currentState;
+    history =
+        historyTemplate.replace(/%SUMMARY%/, getWeekSummary())
+            .replace(/%MISSING%/, missing)
+            .replace(/%STATECHANGE%/, formattedLastStateChange)
+            .replace(/%SERVERSTART%/, formattedStartDate)
+            .replace(/%HISTORYSTART%/, formattedInitialTime)
+            .replace(/%SAVETIMER%/, pad((nextWriteTime - now) / 1000 / 60, 5))
+            .replace(/%NOW%/, new Date(now))
+            .replace(/%PREVIOUSACTION%/, previousAction)
+            .replace(/%PREVIOUSTIME%/, formattedPreviousActionStart)
+            .replace(/%STATENOW%/, currentState);
   }
   callback();
 }
@@ -180,23 +179,19 @@ function updatePrefix(ip) {
 function puts(error, stdout, stderr) { console.log(stdout) }
 
 function getWeekSummary() {
-  var day = new Array(7);
+  var day = [0, 0, 0, 0, 0, 0, 0];
 
-  for (var i = 0; i < day.length; i++) { day[i] = 0.0; }
   for (var i = 0; i < lengthOfDay * 7; i++) {
-    day[statusHistoryTimestampsDOW[i] || day.length] +=
-        Number(statusHistory[i]) || 0;
+    day[statusHistoryTimestampsDOW[i]] += statusHistory[i];
   }
-  var daystring = new Array(7);
-  for (var i = 0; i < daystring.length; i++) {
-    if (day[i] == 0.0) daystring[i] = "0.000";
-    else if (day[i] == lengthOfDay) daystring[i] = "100.0";
-    else daystring[i] = pad(day[i] / lengthOfDay * 100.0, 5);
+  for (var i = 0; i < day.length; i++) {
+    day[i] = pad(day[i] / lengthOfDay * 100.0, 5);
   }
-  return daystring;
+  return day;
 }
 
 function pad(num, digits) {
+  if (Math.round(num) == num) num += ".";
   for (var i = 0; i < digits; i++) {
     num += "0";
   }
@@ -221,8 +216,16 @@ interval = setInterval(function() {
     if (currentState != previousState) {
       if (initialTime == 0) {
         initialTime = now;
+        formattedInitialTime = dateFormat(initialTime, "ddd mm-dd HH:MM:ss");
       }
       lastStateChange = now;
+      formattedLastStateChange =
+          dateFormat(new Date(lastStateChange), "ddd mm-dd HH:MM:ss");
+      if (currentState == "On") {
+        sendEventToTopic("notification_power_on");
+      } else {
+        sendEventToTopic("notification_power_off");
+      }
     }
   }
 
@@ -242,7 +245,39 @@ interval = setInterval(function() {
     }
   }
 
-}, 10);
+}, 50);
+
+function sendEventToTopic(topic) {
+  updatePrefix();
+  console.log(prefix + "Sending topic request: " + topic);
+  var sendTopic = {
+    hostname: 'fcm.googleapis.com',
+    path: '/fcm/send',
+    headers: {"Content-Type": "application/json", "Authorization":"key=AIzaSyC2DBReduyo0U-4sm9Rm2ogIxV2v4yu0VY"},
+    port: 443,
+    method: "POST"
+  };
+  var message = "{\n  \"to\": \"/topics/" + topic + "\",\n  \"data\": {\n    \"message\":  \"" + topic + "\",\n  }\n}";
+  var req = https.request(sendTopic, function(response) {
+    var content = '';
+    response.on('data', function(chunk) { content += chunk; });
+    response.on('end', function() {
+      updatePrefix();
+      console.log(prefix + "Firebase replied: " + content);
+    });
+    response.on('close', function() {
+      updatePrefix();
+      console.log(prefix + "Firebase request closed! " + content.length);
+    });
+    response.on('error', function() {
+      updatePrefix();
+      console.log(prefix + "Firebase request errored! " + content.length);
+    });
+  });
+  req.write(message);
+  req.end();
+  req.on('error', function(e) {console.log(e);});
+}
 
 function pressPower(duration) {
   if (new Date() > releaseTime && !powerState && !resetState) {
@@ -253,6 +288,8 @@ function pressPower(duration) {
     releaseTime = new Date(Date.now() + duration);
     previousAction = "Pressed Power for " + duration + "ms";
     previousActionStart = new Date();
+    formattedPreviousActionStart =
+        dateFormat(previousActionStart, "ddd mm-dd HH:MM:ss");
   }
 }
 
@@ -265,6 +302,8 @@ function pressReset(duration) {
     releaseTime = new Date(Date.now() + duration);
     previousAction = "Pressed Reset for " + duration + "ms";
     previousActionStart = new Date();
+    formattedPreviousActionStart =
+        dateFormat(previousActionStart, "ddd mm-dd HH:MM:ss");
   }
 }
 
@@ -290,8 +329,21 @@ function loadData() {
   var temp = buf.toString().split(",");
   var finalChangeIndex = 0;
   for (var i = 0; i < temp.length && i < statusHistory.length; i++) {
-    statusHistory[i] = temp[i];
-    if (temp[i].length > 0) {
+    statusHistory[i] = Number(temp[i]);
+  }
+  updatePrefix();
+  console.log(prefix + "Read files (1/2)");
+  temp = fs.readFileSync('statusHistoryTimestamps.dat').toString().split(",");
+  var tempDate = new Date();
+  for (var i = 0; i < statusHistoryTimestampsDOW.length; i++) {
+    statusHistoryTimestampsDOW[i] = 7;
+  }
+  for (var i = 0; i < temp.length && i < statusHistoryTimestamps.length; i++) {
+    statusHistoryTimestamps[i] = Number(temp[i]);
+    if (initialTime == 0 || statusHistoryTimestamps[i] < initialTime) {
+      initialTime = statusHistoryTimestamps[i];
+    }
+    if (temp[i] != 0) {
       previousIndex = currentIndex;
       currentIndex = i;
 
@@ -301,19 +353,19 @@ function loadData() {
       if (currentState != previousState) {
         finalChangeIndex = i;
       }
-    }
-  }
-  updatePrefix();
-  console.log(prefix + "Read files (1/2)");
-  temp = fs.readFileSync('statusHistoryTimestamps.dat').toString().split(",");
-  var tempDate = new Date();
-  for (var i = 0; i < temp.length && i < statusHistoryTimestamps.length; i++) {
-    statusHistoryTimestamps[i] = temp[i];
-    if (temp[i] != 0) {
-      tempDate.setTime(Number(temp[i]));
+      tempDate.setTime(statusHistoryTimestamps[i]);
       statusHistoryTimestampsDOW[i] = tempDate.getDay();
+      const current = statusHistoryTimestamps[i];
+      const previous = statusHistoryTimestamps[i - 1];
+      if (previous > 0 && current > 0 &&
+          current - previous > 300000) {  // 5 mins
+        missing += "\nMissing history from " +
+            dateFormat(previous, "ddd mm/dd/yy HH:MM:ss") + " to " +
+            dateFormat(current, "ddd mm/dd/yy HH:MM:ss");
+      }
     }
   }
+  formattedInitialTime = dateFormat(initialTime, "ddd mm/dd/yy HH:MM:ss");
   lastStateChange = Number(statusHistoryTimestamps[finalChangeIndex]);
   updatePrefix();
   console.log(prefix + "Read files (2/2)");
