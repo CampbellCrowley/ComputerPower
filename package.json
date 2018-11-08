@@ -1,0 +1,31 @@
+{
+  "name": "ComputerPower",
+  "version": "0.1.0",
+  "description": "Campbell's computer power-state monitor and controller.",
+  "homepage": "https://dev.campbellcrowley.com/secure/pc/",
+  "bugs": {
+    "email": "bugs@campbellcrowley.com"
+  },
+  "license": "UNLICENSED",
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CampbellCrowley/ComputerPower"
+  },
+  "dependencies": {
+    "child_process": "^1.0.2",
+    "dateformat": "^3.0.3",
+    "fs": "0.0.1-security",
+    "http": "0.0.0",
+    "https": "^1.0.0",
+    "onoff": "^3.2.2"
+  },
+  "contributors": [
+    {
+      "name": "Campbell Crowley",
+      "email": "dev@campbellcrowley.com"
+    }
+  ],
+  "devDependencies": {},
+  "scripts": {}
+}
