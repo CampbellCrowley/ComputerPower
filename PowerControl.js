@@ -39,10 +39,9 @@ var led = new Gpio(18, 'in');
 var interval;
 
 var Request404 = {
-  // host: 'Campbell-DesktopDeb.local',
-  host: 'Campbell-Pi-2.local',
+  host: 'www.campbellcrowley.com',
   path: '/404.html',
-  port: '81',
+  port: '443',
 };
 var date = dateFormat(new Date(), "mm-dd HH:MM:ss");
 var startDate = date;
@@ -120,7 +119,7 @@ function handler (req, res) {
       common.getFile(__dirname + "/index.html", res, "text/html");
       console.log(prefix + "Served index.html");
     } else {
-      http.get(Request404, function(response) {
+      https.get(Request404, function(response) {
             var content = '';
             response.on('data', function(chunk) { content += chunk; });
             response.on('end', function() {
