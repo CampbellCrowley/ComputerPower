@@ -182,9 +182,12 @@ function getWeekSummary() {
   var day = [0, 0, 0, 0, 0, 0, 0];
   var dayTotal = [0, 0, 0, 0, 0, 0, 0];
 
+  const oldestAcceptable = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
   for (var i = 0; i < lengthOfDay * 7; i++) {
+    if (statusHistoryTimestamps[i] < oldestAcceptable) continue;
     day[statusHistoryTimestampsDOW[i]] += statusHistory[i];
-    dayTotal[statusHistoryTimestampsDOW[i]] ++;
+    dayTotal[statusHistoryTimestampsDOW[i]]++;
   }
   for (var i = 0; i < day.length; i++) {
     if (dayTotal[i] == 0) {
@@ -375,6 +378,13 @@ function loadData() {
   lastStateChange = Number(statusHistoryTimestamps[finalChangeIndex]);
   updatePrefix();
   console.log(prefix + "Read files (2/2)");
+}
+
+var app2 = http.createServer(handler2);
+app2.listen(80);
+function handler2(req, res) {
+  res.writeHead(418);
+  res.end('418: I\'m a teapot');
 }
 
 function exit() {
