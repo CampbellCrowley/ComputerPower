@@ -35,7 +35,7 @@ var formattedPreviousActionStart =
 var Gpio = onoff.Gpio;
 var power = new Gpio(24, 'out');
 var reset = new Gpio(23, 'out');
-var led = new Gpio(18, 'in');
+var led = new Gpio(25, 'in');
 var interval;
 
 var Request404 = {
