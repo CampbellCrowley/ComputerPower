@@ -4,11 +4,11 @@ const http = require('http');
 const express = require('express');
 const bodyParser = require('body-parser');
 const compression = require('compression');
-const PowerController = require('./PowerController.js');
+const Authenticator = require('./Authenticator.js');
 
-class PowerServer {
+class AuthServer {
   /**
-   * Create instance of PowerServer.
+   * Create instance of AuthServer.
    * @param {number} [port=80] Port for server to listen on.
    * @param {string} [address='127.0.0.1'] Address to bind to.
    */
@@ -42,12 +42,12 @@ class PowerServer {
     this._server = null;
 
     /**
-     * Instance of PowerController for managing power state info.
+     * Instance of Authenticator for managing user permissions.
      * @private
      * @constant
-     * @type {PowerController}
+     * @type {Authenticator}
      */
-    this._controller = new PowerController();
+    this._authenticator = new Authenticator();
 
     this._registerEndpoints();
   }
@@ -56,12 +56,10 @@ class PowerServer {
    * @public
    */
   start() {
-    console.log(
-        `PowerServer server starting... (${this._address}:${this._port}).`);
-    this._controller.start();
+    console.log(`AuthServer starting... (${this._address}:${this._port}).`);
     this._server = http.createServer(this._app);
     this._server.listen(this._port, this._address, () => {
-      console.log(`PowerServer server begin.`);
+      console.log(`AuthServer server begin.`);
     });
   }
   /**
@@ -69,15 +67,14 @@ class PowerServer {
    * @public
    */
   shutdown() {
-    this._controller.shutdown();
     if (this._server) {
-      console.log('PowerServer server stopping...');
+      console.log('AuthServer server stopping...');
       this._server.close(() => {
-        console.log('PowerServer server closed.');
+        console.log('AuthServer server closed.');
         this._server = null;
       });
     } else {
-      console.log('PowerServer already stopped?');
+      console.log('AuthServer already stopped?');
     }
   }
   /**
@@ -97,22 +94,24 @@ class PowerServer {
 
     // Returns current power state. Either On or Off.
     this._app.get('/get-state', (req, res) => {
-      const state = this._controller.currentState;
+      const state = this._controller.currentState();
       res.status(200);
       res.json({data: state, code: 200});
     });
     // Gets summary of current state info.
     this._app.get('/get-info', (req, res) => {
-      res.status(501).json({error: 'Not Yet Implemented', code: 501});
+      res.status(501).json(
+          {error: 'Not Yet Implemented', code: 501, device: 'Auth'});
     });
     // Gets data history for graphing.
     this._app.get('/get-history', (req, res) => {
-      res.status(501).json({error: 'Not Yet Implemented', code: 501});
+      res.status(501).json(
+          {error: 'Not Yet Implemented', code: 501, device: 'Auth'});
     });
     // Request pressing of a button. Either power or reset.
     this._app.post('/press-button', (req, res) => {
       if (!req.body) {
-        res.status(400).json({error: 'Bad Request', code: 400});
+        res.status(400).json({error: 'Bad Request', code: 400, device: 'Auth'});
       } else {
         this._controller.pressButton(req.body.button, (err) => {
           if (err) {
@@ -132,7 +131,7 @@ class PowerServer {
     // Request holding of a button. Either power or reset.
     this._app.post('/hold-button', (req, res) => {
       if (!req.body) {
-        res.status(400).json({error: 'Bad Request', code: 400});
+        res.status(400).json({error: 'Bad Request', code: 400, device: 'Auth'});
       } else {
         this._controller.holdButton(req.body.button, (err) => {
           if (err) {
@@ -161,4 +160,4 @@ class PowerServer {
     }));
   }
 }
-module.exports = PowerServer;
+module.exports = AuthServer;

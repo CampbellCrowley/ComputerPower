@@ -24,29 +24,14 @@ const PowerState = {
  */
 const PowerStateGoal = {
   /** Attempt to achieve powered on state. */
-  ON: 1,
+  ON: PowerState.ON,
   /** Attempt to achieve powered off state. */
-  OFF: 0,
+  OFF: PowerState.OFF,
   /** We don't know what to do, something went wrong. */
-  UNKNOWN: -1,
-  /** Do not attempt to achieve a particular state. */
+  UNKNOWN: PowerState.UNKNOWN,
+  /** Do not attempt to achieve a particular state. Basically NOP.*/
   UNCHANGED: -2,
 };
-/**
- * GPIO states.
- * @readonly
- * @enum {number}
- */
-const PinState = {
-  /** High state. */
-  HIGH: 1,
-  /** Low state. */
-  LOW: 0,
-  /** Between states, or value doesn't make sense. */
-  UNSURE: 2,
-  /** No value. */
-  UNKNOWN: -1,
-}
 
 class PowerController {
   /**
@@ -57,6 +42,7 @@ class PowerController {
      * Default time in milliseconds to press a button.
      * @public
      * @default
+     * @constant
      * @type {number}
      */
     this.pressTime = 200;
@@ -64,16 +50,10 @@ class PowerController {
      * Default time in milliseconds to hold a button.
      * @public
      * @default
+     * @constant
      * @type {number}
      */
     this.holdTime = 5000;
-    /**
-     * Time in milliseconds between each event loop step.
-     * @public
-     * @default
-     * @type {number}
-     */
-    this.eventLoopTimeDelay = 50;
     /**
      * Timestamp at which the next step should take place.
      * @private
@@ -81,6 +61,15 @@ class PowerController {
      * @type {number}
      */
     this._nextEventLoopStepTime = 0;
+    /**
+     * Time in milliseconds to wait once seeing a change in LED power state,
+     * before determining that the power state of the device has changed.
+     * @private
+     * @default
+     * @constant
+     * @type {number}
+     */
+    this._powerStateChangeDelay = 1000;
 
 
     /**
@@ -107,6 +96,13 @@ class PowerController {
      * @type {?Gpio}
      */
     this._ledPin = null;
+
+    this._fakePin = {
+      write: (_, cb) => cb(),
+      writeSync: () => {},
+      read: (cb) => cb(null, onoff.Gpio.LOW),
+      unexport: () => {},
+    };
 
     /**
      * Current power state inferred from the LED pin.
@@ -142,12 +138,19 @@ class PowerController {
     };
 
     /**
-     * Timeout for the next event loop cycle to begin.
+     * Timeout for the next button release time.
      * @private
      * @type {?Timeout}
      * @default
      */
-    this._eventLoopTimeout = null;
+    this._buttonReleaseTimeout = null;
+    /**
+     * Timeout for watching if the LED remains in its new state after changing.
+     * @private
+     * @type {?Timeout}
+     * @default
+     */
+    this._powerStateTimeout = null;
   }
   /**
    * Start event loop and activate GPIO.
@@ -155,43 +158,50 @@ class PowerController {
    */
   start() {
     const Gpio = onoff.Gpio;
-    try {
-      this._powerPin = new Gpio(config.power, 'out');
-    } catch (err) {
-      console.error(
-          'Failed to export power pin! Writing states will not work.');
-      console.error(err);
-    }
-    try {
-      this._resetPin = new Gpio(config.reset, 'out');
-    } catch (err) {
-      console.error(
-          'Failed to export reset pin! Writing states will not work.');
-      console.error(err);
-    }
-    try {
-      this._ledPin = new Gpio(config.led, 'in');
-    } catch (err) {
-      console.error('Failed to export LED pin! Reading states will not work.');
-      console.error(err);
+    if (Gpio.accessible) {
+      try {
+        this._powerPin = new Gpio(config.power, 'out');
+      } catch (err) {
+        console.error(
+            'Failed to export power pin! Writing states will not work.');
+        console.error(err);
+      }
+      try {
+        this._resetPin = new Gpio(config.reset, 'out');
+      } catch (err) {
+        console.error(
+            'Failed to export reset pin! Writing states will not work.');
+        console.error(err);
+      }
+      try {
+        this._ledPin = new Gpio(config.led, 'in');
+        this._ledPin.watch((...args) => this._ledStateChange(...args));
+      } catch (err) {
+        console.error(
+            'Failed to export LED pin! Reading states will not work.');
+        console.error(err);
+      }
+    } else {
+      console.error('GPIO is not accessible! Pins will be simulated.');
+      this._powerPin = this._fakePin;
+      this._resetPin = this._fakePin;
+      this._ledPin = this._fakePin;
     }
 
-    this._step();
+    this._readPowerState();
   }
   /**
    * Shutdown event loop and deactivate GPIO.
    * @public
    */
   shutdown() {
-    clearTimeout(this._eventLoopTimeout);
-
     if (this._powerPin) {
-      this._powerPin.writeSync(0);
+      this._powerPin.writeSync(onoff.Gpio.LOW);
       this._powerPin.unexport();
       this._powerPin = null;
     }
     if (this._resetPin) {
-      this._resetPin.writeSync(0);
+      this._resetPin.writeSync(onoff.Gpio.LOW);
       this._resetPin.unexport();
       this._resetPin = null;
     }
@@ -214,66 +224,125 @@ class PowerController {
    * @public
    * @param {PowerStateGoal} goal Goal state to achieve.
    * @param {function} [cb] Callback once completed with optional error.
-   * @TODO: Implement.
    */
   requestPowerState(goal, cb) {
     if (typeof cb !== 'function') cb = () => {};
-    cb({error: 'Not Yet Implemented', code: 501});
+
+    if (goal == this._currentState || goal === PowerStateGoal.UNCHANGED) {
+      cb(null, {message: 'State Unchanged', code: 200});
+    } else {
+      switch (goal) {
+        case PowerStateGoal.ON:
+          this.pressButton('power', cb);
+          break;
+        case PowerStateGoal.OFF:
+          this.holdButton('power', cb);
+          break;
+        default:
+          cb({error: `Unknown PowerStateGoal ${goal}`, code: 501});
+          break;
+      }
+    }
   }
   /**
-   * Perform one event loop step. This reads pin states, and updates timed
-   * events.
+   * Handler for when the LED power state changes. May trigger
+   * `_handlePowerStateChange()`.
+   * @private
+   * @param {Error} err Possible error.
+   * @param {number} value LED Pin value.
+   */
+  _ledStateChange(err, value) {
+    const inferredState = this.inferPowerState(value);
+
+    clearTimeout(this._powerStateTimeout);
+    if (inferredState !== this._currentState) {
+      setTimeout(() => {
+        this._currentState = inferredState;
+        this._handlePowerStateChange();
+      }, this._powerStateChangeDelay);
+    }
+  }
+  /**
+   * Read the power state of the LED pin, and update accordingly. This is only
+   * used to get initial state after statup.
    * @private
    */
-  _step() {
-    const startTime = Date.now();
-    if (this._nextEventLoopStepTime > startTime) {
-      this._rescheduleEventLoopStep();
+  _readPowerState() {
+    this._ledPin.read((err, val) => {
+      if (err) {
+        console.error(err);
+        return;
+      }
+
+      const prevState = this._currentState;
+      this._currentState = this.inferPowerState(val);
+      if (this._currentState != prevState) this._handlePowerStateChange();
+    });
+  }
+  /**
+   * Infer a PowerState from a given pin value.
+   * @public
+   * @param {number} Value to infer PowerState from.
+   * @returns {PowerState} Inferred state.
+   */
+  inferPowerState(value) {
+    switch (value) {
+      case onoff.Gpio.LOW:
+        return PowerState.OFF;
+      case onoff.Gpio.HIGH:
+        return PowerState.ON;
+      default:
+        return PowerState.UNKNOWN;
+    }
+  }
+  /**
+   * Handle the device changing power state.
+   * @private
+   * @TODO: Implement sending notifications.
+   */
+  _handlePowerStateChange() {
+    console.error('_handlePowerStateChange() not implemented.');
+  }
+  /**
+   * Check if buttons are done being pressed and release them. This will not
+   * start a button press.
+   * @private
+   * @param {object} [times] Time object to check, used internally.
+   * @param {Gpio} [pin] Corresponding pin.
+   */
+  _checkButtonStates(times, pin) {
+    const now = Date.now();
+    if (!times) {
+      clearTimeout(this._buttonReleaseTimeout);
+      this._checkButtonStates(this._pressTimes.power, this._powerPin);
+      this._checkButtonStates(this._pressTimes.reset, this._resetPin);
+
+      const powerTime =
+          this._pressTimes.power.start + this._pressTimes.power.duration;
+      const resetTime =
+          this._pressTimes.reset.start - this._pressTimes.reset.duration;
+      let nextTime = 0;
+
+      if (powerTime > now) nextTime = powerTime;
+      if (resetTime < nextTime && resetTime > now) nextTime = powerTime;
+
+      if (nextTime > 0) {
+        setTimeout(() => this._checkButtonStates(), nextTime - now);
+      }
       return;
     }
 
-    this._readPowerState();
-    this._checkButtonStates();
+    if (times.start === 0 || times.duration === 0) return;
 
-    this._rescheduleEventLoopStep();
-  }
-  /**
-   * Reschedule the next event loop step time Timeout. If the currently
-   * scheduled time is in the past, we will ensure the next time is in the
-   * future.
-   * @private
-   */
-  _rescheduleEventLoopStep() {
-    const now = Date.now();
-
-    // If no loop has happened yet.
-    if (this._nextEventLoopStepTime == 0) {
-      this._nextEventLoopStepTime = now + this.eventLoopTimeDelay;
-    }
-
-    // Ensure time is in future. Skip passed step times.
-    while (this._nextEventLoopStepTime <= now) {
-      this._nextEventLoopStepTime += this.eventLoopTimeDelay;
-    }
-
-    const nextStepDelay = this._nextEventLoopStepTime - now;
-    clearTimeout(this._eventLoopTimeout);
-    this._eventLoopTimeout = setTimeout(() => this._step, nextStepDelay);
-  }
-  /**
-   * Read the power state of the LED pin, and update accordingly.
-   * @private
-   * @TODO: Implement.
-   */
-  _readPowerState() {
-  }
-  /**
-   * Check if buttons are done being pressed and release them.
-   * @private
-   * @TODO: Implement.
-   */
-  _checkButtonStates() {
-
+     if (now - times.duration > times.start) {
+       times.duration = 0;
+       times.start = 0;
+       pin.write(onoff.Gpio.LOW, (err) => {
+         if (!err) return;
+         console.error('Failed to write pin low after duration.');
+         console.error(err);
+       });
+     }
   }
   /**
    * Press a button.
@@ -296,7 +365,7 @@ class PowerController {
     this.setButton(button, this.holdTime, cb);
   }
   /**
-   * Hold a button.
+   * Set a button state for a time.
    * @public
    * @param {string} button Name of the button to hold. ("power" or "reset").
    * @param {number} time How long to set the button state in milliseconds.
@@ -304,12 +373,15 @@ class PowerController {
    */
   setButton(button, time, cb) {
     let pin = null;
+    let pressTime = null;
     switch (button) {
       case 'power':
         pin = this._powerPin;
+        pressTime = this._pressTimes.power;
         break;
       case 'reset':
         pin = this._resetPin;
+        pressTime = this._pressTimes.reset;
         break;
       default:
         cb({
@@ -320,7 +392,18 @@ class PowerController {
         return;
     }
 
-    cb({error: 'Not Yet Implemented', code: 501});
+    pressTime.start = Date.now();
+    pressTime.duration = time * 1;
+    pin.write(onoff.Gpio.HIGH, (err) => {
+      if (err) {
+        console.error('Failed to write pin high.');
+        console.error(err);
+      }
+      this._checkButtonStates();
+    });
   }
 }
+
+PowerController.PowerState = PowerState;
+PowerController.PowerStateGoal = PowerStateGoal;
 module.exports = PowerController;
