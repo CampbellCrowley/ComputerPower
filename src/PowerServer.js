@@ -85,6 +85,25 @@ class PowerServer {
    * @private
    */
   _registerEndpoints() {
+    // Error handler.
+    this._app.use((err, req, res, next) => {
+      if (err) {
+        console.error('Encountered error while handing request:');
+        console.error(err);
+        if (err instanceof SyntaxError) {
+          res.status(400).json({error: 'Syntax Error', code: 400});
+          console.error(
+              `${req.method} ${res.statusCode} ${req.originalUrl} ${req.ip}`);
+        } else {
+          res.status(400).json({error: 'Unknown Error', code: 400});
+          console.error(
+              `${req.method} ${res.statusCode} ${req.originalUrl} ${req.ip}`);
+        }
+      } else {
+        next();
+      }
+    });
+
     // All routes, logging.
     this._app.use((req, res, next) => {
       next();
@@ -103,7 +122,8 @@ class PowerServer {
     });
     // Gets summary of current state info.
     this._app.get('/get-info', (req, res) => {
-      res.status(501).json({error: 'Not Yet Implemented', code: 501});
+      res.status(200).json(
+          {data: this._controller.history.getWeekSummary(), code: 200});
     });
     // Gets data history for graphing.
     this._app.get('/get-history', (req, res) => {

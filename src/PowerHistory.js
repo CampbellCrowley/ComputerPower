@@ -4,6 +4,8 @@ const mkdirp = require('mkdirp');
 const fs = require('fs');
 const path = require('path');
 
+const PowerState = require('./enum/PowerState.js');
+
 const saveFile = './save/powerStateHistory.json';
 
 const totalDays = 7;
@@ -29,6 +31,14 @@ class PowerHistory {
      */
     this._eventHistory = [[], [], [], [], [], [], []];
 
+    /**
+     * Are we already reading/writing from/to file.
+     * @private
+     * @default
+     * @type {boolean}
+     */
+    this._doingIO = false;
+
     this._readFile();
   }
 
@@ -38,11 +48,21 @@ class PowerHistory {
    * @param {basicCB} [cb] Callback once complete.
    */
   _readFile(cb) {
-    if (typeof cb !== 'function') cb = () => {};
+    const finalCB = cb;
+    cb = (...args) => {
+      this._doingIO = false;
+      if (typeof finalCB === 'function') finalCB(...args);
+    };
+    if (this._doingIO) {
+      cb({error:'I/O in progress.'});
+      return;
+    }
+    this._doingIO = true;
+
     fs.readFile(saveFile, (err, data) => {
       if (err) {
         if (err.code == 'ENOENT') {
-          _saveFile(cb);
+          this._saveFile(cb);
         } else {
           console.error(`Could not create save file: ${saveFile}`);
           console.error(err);
@@ -60,11 +80,18 @@ class PowerHistory {
         cb(err);
         return;
       }
-      this._eventHistory = parsed.map((day) => {
-        return day.map((evt) => {
-          return new PowerStateEvent(evt.timestamp, evt.state);
+      try {
+        this._eventHistory = this._eventHistory.map((day, i) => {
+          return parsed[i].map((evt) => {
+            return new PowerStateEvent(evt.timestamp, evt.state);
+          });
         });
-      });
+      } catch (err) {
+        console.error('Save file is malformed!');
+        console.error(err);
+        cb(err);
+        return;
+      }
       cb(null, this._eventHistory);
     });
   }
@@ -74,8 +101,18 @@ class PowerHistory {
    * @private
    * @param {basicCB} [cb] Callback once complete.
    */
-  _saveFile() {
-    if (typeof cb !== 'function') cb = () => {};
+  _saveFile(cb) {
+    const finalCB = cb;
+    cb = (...args) => {
+      this._doingIO = false;
+      if (typeof finalCB === 'function') finalCB(...args);
+    };
+    if (this._doingIO) {
+      cb({error:'I/O in progress.'});
+      return;
+    }
+    this._doingIO = true;
+
     const dir = path.dirname(saveFile);
     mkdirp(dir)
         .then(() => {
@@ -85,14 +122,23 @@ class PowerHistory {
             });
           });
           const writable = JSON.stringify(serialized, null, 2);
-          fs.writeFile(saveFile, writable, (err) => {
+          const tmpFile = `${saveFile}.tmp`;
+          fs.writeFile(tmpFile, writable, (err) => {
             if (err) {
-              console.error(`Failed to write saveFile: ${saveFile}`);
+              console.error(`Failed to write saveFile: ${tmpFile}`);
               console.error(err);
               cb(err);
-            } else {
-              cb(null, {});
+              return;
             }
+            fs.rename(tmpFile, saveFile, (err) => {
+              if (err) {
+                console.error(`Failed to rename ${tmpFile} to ${saveFile}`);
+                console.error(err);
+                cb(err);
+              } else {
+                cb(null, {});
+              }
+            });
           });
         })
         .catch((err) => {
@@ -100,6 +146,50 @@ class PowerHistory {
           console.error(err);
           cb(err);
         });
+  }
+
+  /**
+   * Get summary of uptime from the last week as a percentage by day.
+   * @public
+   * @returns {number[]} 7 values 0-1.
+   */
+  getWeekSummary() {
+    this.purge();
+    return this._eventHistory.map((day) => this._getDayPercentage(day));
+  }
+  /**
+   * Get the percentage of the given day of which the device was on.
+   * @private
+   * @returns {number} Value between 0 and 1.
+   */
+  _getDayPercentage(day) {
+    let timeOn = 0;
+    if (!day || !day.length) return timeOn;
+
+    // Timestamp at end of this day.
+    const endDate = new Date(day[0].timestamp);
+    endDate.setHours(23, 59, 59, 999);
+    const end = endDate.getTime()
+
+    for (let i = 0; i < day.length; i++) {
+      if (day[i].state != PowerState.ON) continue;
+
+      let next = end;
+      let diff = next - day[i].timestamp;
+      for (let j = i + 1; j < day.length; j++) {
+        if (day[j].state == PowerState.OFF) {
+
+          diff = day[j].timestamp - day[i].timestamp;
+          if (diff < totalMilliseconds) next = day[j].timestamp;
+          diff = day[j].timestamp - day[i].timestamp;
+
+          i = j + 1;
+          break;
+        }
+      }
+      timeOn += diff;
+    }
+    return timeOn / totalMilliseconds;
   }
 
   /**
@@ -118,6 +208,8 @@ class PowerHistory {
     this._eventHistory[dow].push(evt);
 
     this.purge();
+
+    this._saveFile();
   }
   /**
    * Purge events older than 7 days.
@@ -127,7 +219,7 @@ class PowerHistory {
     const now = Date.now();
     const old = now - totalMilliseconds * totalDays;
 
-    this._eventHistory = this._eventHistory.forEach((day) => {
+    this._eventHistory.forEach((day) => {
       while (day.length > 0 && day[0].timestamp < old) day.shift();
     });
   }

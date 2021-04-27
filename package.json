@@ -17,13 +17,15 @@
     "compression": "^1.7.4",
     "dateformat": "^4.5.1",
     "express": "^4.17.1",
+    "mkdirp": "^1.0.4",
     "onoff": "^6.0.1"
   },
   "contributors": [
     "Campbell Crowley <dev@campbellcrowley.com>"
   ],
   "scripts": {
-    "start": "node index.js"
+    "start": "node ./index.js",
+    "start-auth": "node ./auth_index.js"
   },
   "main": "index.js",
   "author": "Campbell Crowley"

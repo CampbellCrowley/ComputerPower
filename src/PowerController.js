@@ -3,35 +3,10 @@
 const onoff = require('onoff');
 const exec = require('child_process').exec;
 const config = require('../config/pinconfig.json');
+const PowerHistory = require('./PowerHistory.js');
 
-/**
- * Power states.
- * @readonly
- * @enum {number}
- */
-const PowerState = {
-  /** On. */
-  ON: 1,
-  /** Off. */
-  OFF: 0,
-  /** We don't know for some reason. */
-  UNKNOWN: -1,
-};
-/**
- * Power state goals.
- * @readonly
- * @enum {number}
- */
-const PowerStateGoal = {
-  /** Attempt to achieve powered on state. */
-  ON: PowerState.ON,
-  /** Attempt to achieve powered off state. */
-  OFF: PowerState.OFF,
-  /** We don't know what to do, something went wrong. */
-  UNKNOWN: PowerState.UNKNOWN,
-  /** Do not attempt to achieve a particular state. Basically NOP.*/
-  UNCHANGED: -2,
-};
+const PowerState = require('./enum/PowerState.js');
+const PowerStateGoal = require('./enum/PowerStateGoal.js');
 
 class PowerController {
   /**
@@ -101,6 +76,7 @@ class PowerController {
       write: (_, cb) => cb(),
       writeSync: () => {},
       read: (cb) => cb(null, onoff.Gpio.LOW),
+      readSync: () => 0,
       unexport: () => {},
     };
 
@@ -136,6 +112,15 @@ class PowerController {
         duration: 0,
       },
     };
+
+    /**
+     * Power state history instance.
+     * @public
+     * @constant
+     * @default
+     * @type {PowerHistory}
+     */
+    this.history = new PowerHistory();
 
     /**
      * Timeout for the next button release time.
@@ -195,6 +180,8 @@ class PowerController {
    * @public
    */
   shutdown() {
+    clearTimeout(this._powerStateTimeout);
+    clearTimeout(this._buttonReleaseTimeout);
     if (this._powerPin) {
       this._powerPin.writeSync(onoff.Gpio.LOW);
       this._powerPin.unexport();
@@ -301,7 +288,7 @@ class PowerController {
    * @TODO: Implement sending notifications.
    */
   _handlePowerStateChange() {
-    console.error('_handlePowerStateChange() not implemented.');
+    this.history.createEvent(this.currentState);
   }
   /**
    * Check if buttons are done being pressed and release them. This will not
@@ -404,6 +391,4 @@ class PowerController {
   }
 }
 
-PowerController.PowerState = PowerState;
-PowerController.PowerStateGoal = PowerStateGoal;
 module.exports = PowerController;
