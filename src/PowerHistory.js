@@ -193,6 +193,15 @@ class PowerHistory {
   }
 
   /**
+   * Get the full event history from the last week.
+   * @public
+   * @returns {Array.<Array.<PowerStateEvent>>} Full event history reference.
+   */
+  getEventHistory() {
+    return this._eventHistory;
+  }
+
+  /**
    * Create a new PowerStateEvent.
    * @param {PowerController.PowerState} state The new state due to this event.
    * @param {number} [timestamp] Timestamp of the event, if not specified it is

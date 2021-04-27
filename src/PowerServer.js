@@ -4,7 +4,9 @@ const http = require('http');
 const express = require('express');
 const bodyParser = require('body-parser');
 const compression = require('compression');
+
 const PowerController = require('./PowerController.js');
+const PowerStateGoal = require('./enum/PowerStateGoal.js');
 
 class PowerServer {
   /**
@@ -127,14 +129,15 @@ class PowerServer {
     });
     // Gets data history for graphing.
     this._app.get('/get-history', (req, res) => {
-      res.status(501).json({error: 'Not Yet Implemented', code: 501});
+      res.status(200).json(
+          {data: this._controller.history.getEventHistory(), code: 200});
     });
     // Request pressing of a button. Either power or reset.
     this._app.post('/press-button', (req, res) => {
       if (!req.body) {
         res.status(400).json({error: 'Bad Request', code: 400});
       } else {
-        this._controller.pressButton(req.body.button, (err) => {
+        this._controller.pressButton(req.body.button, (err, msg) => {
           if (err) {
             if (err.code) {
               res.status(err.code);
@@ -143,8 +146,7 @@ class PowerServer {
             }
             res.json(err);
           } else {
-            res.status(204);
-            res.send();
+            res.status(200).json(msg);
           }
         });
       }
@@ -154,7 +156,7 @@ class PowerServer {
       if (!req.body) {
         res.status(400).json({error: 'Bad Request', code: 400});
       } else {
-        this._controller.holdButton(req.body.button, (err) => {
+        this._controller.holdButton(req.body.button, (err, msg) => {
           if (err) {
             if (err.code) {
               res.status(err.code);
@@ -163,15 +165,34 @@ class PowerServer {
             }
             res.json(err);
           } else {
-            res.status(204);
-            res.send();
+            res.status(200).json(msg);
           }
         });
       }
     });
     // Request the computer enter a certain power state. Either On or Off.
     this._app.post('/request-state', (req, res) => {
-      res.status(501).json({error: 'Not Yet Implemented', code: 501});
+      if (!req.body) {
+        res.status(400).json({error: 'Bad Request', code: 400});
+      } else {
+        const goalState = this._controller.inferPowerState(req.body.state);
+        if (goalState == PowerStateGoal.UNKNOWN) {
+          res.status(400).json({error: 'Bad Goal State', code: 400});
+        } else {
+          this._controller.requestPowerState(goalState, (err, msg) => {
+            if (err) {
+              if (err.code) {
+                res.status(err.code);
+              } else {
+                res.status(200);
+              }
+              res.json(err);
+            } else {
+              res.status(200).json(msg)
+            }
+          });
+        }
+      }
     });
 
     // All routes, fallback.

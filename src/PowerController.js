@@ -269,14 +269,16 @@ class PowerController {
   /**
    * Infer a PowerState from a given pin value.
    * @public
-   * @param {number} Value to infer PowerState from.
+   * @param {number|string} Value to infer PowerState from, or string value.
    * @returns {PowerState} Inferred state.
    */
   inferPowerState(value) {
     switch (value) {
       case onoff.Gpio.LOW:
+      case 'off':
         return PowerState.OFF;
       case onoff.Gpio.HIGH:
+      case 'on':
         return PowerState.ON;
       default:
         return PowerState.UNKNOWN;
@@ -385,6 +387,9 @@ class PowerController {
       if (err) {
         console.error('Failed to write pin high.');
         console.error(err);
+        cb({error: 'Failed to write pin state.', code: 500});
+      } else {
+        cb(null, {message: 'Success!', code: 200});
       }
       this._checkButtonStates();
     });
