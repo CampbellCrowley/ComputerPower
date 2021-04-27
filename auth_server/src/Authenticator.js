@@ -96,8 +96,9 @@ class Authenticator {
         cb({code: 500, error: 'SQL Query Failure'});
         return;
       }
-      console.log(res);
-      cb(null, res);
+      const flat = res.map((row) => row.dId);
+      console.log(flat);
+      cb(null, flat);
     });
   }
 
@@ -123,6 +124,28 @@ class Authenticator {
       }
       console.log(res);
       cb(null, {uId: uid, dId: did, hasAccess: res.length > 0});
+    });
+  }
+  /**
+   * Get the host info for sending a request to the given device.
+   * @public
+   * @param {string} did Device ID.
+   * @param {basicCB] cb Callback once fetched or failed.
+   */
+  getDeviceHost(did, cb) {
+    const query = 'SELECT ?? FROM ?? WHERE ??=? LIMIT 1';
+    const formatted =
+        sql.format(query, ['dHost', databaseConfig.table, 'dId', did]);
+
+    this._sqlCon.query(formatted, (err, res) => {
+      if (err) {
+        console.error(`Query Failed: ${formatted}`);
+        console.error(err);
+        cb({code: 500, error: 'SQL Query Failure'});
+        return;
+      }
+      console.log(res);
+      cb(null, res[0].dHost);
     });
   }
 }
