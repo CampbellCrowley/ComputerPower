@@ -1,0 +1,8 @@
+{
+  "user": "computerpower-auth",,
+  "password": "PASSWORD",
+  "host": "localhost",
+  "database": "ComputerPower",
+  "port": "3306",
+  "table": "DeviceUsers"
+}

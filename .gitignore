@@ -2,3 +2,8 @@ node_modules/*
 *.log
 *.dat
 gApiCredentials*.json
+
+auth_server/config/authconfig.json
+auth_server/config/campbells-app-firebase-adminsdk-tbe4g-bbf05adeed.json
+
+save/

@@ -25,7 +25,7 @@
   ],
   "scripts": {
     "start": "node ./index.js",
-    "start-auth": "node ./auth_index.js"
+    "start-auth": "cd ./auth_server && npm start"
   },
   "main": "index.js",
   "author": "Campbell Crowley"
