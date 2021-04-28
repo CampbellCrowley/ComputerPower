@@ -95,7 +95,6 @@ class Authenticator {
         cb({code: 500, error: 'SQL Query Failure'});
         return;
       }
-      console.log(res);
       cb(null, res);
     });
   }
@@ -120,7 +119,6 @@ class Authenticator {
         cb({code: 500, error: 'SQL Query Failure'});
         return;
       }
-      console.log(res);
       cb(null, {uId: uid, dId: did, hasAccess: res.length > 0});
     });
   }
@@ -142,7 +140,6 @@ class Authenticator {
         cb({code: 500, error: 'SQL Query Failure'});
         return;
       }
-      console.log(res);
       cb(null, res[0].dHost);
     });
   }
