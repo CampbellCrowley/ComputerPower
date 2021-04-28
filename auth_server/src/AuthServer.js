@@ -189,8 +189,21 @@ class AuthServer {
               res.status(500).json({error: 'Internal Server Error', code: 500});
               return;
             }
-            const url = `${host}${req.url}`;
-            const req2 = http.request(url, (res2) => {
+
+            const splitHost = host.split(':');
+            const domain = splitHost[0];
+            const port = splitHost[1];
+            const headers = req.headers['content-type'] && {
+              'content-type': req.headers['content-type'],
+            };
+            const opts = {
+              host: domain,
+              port: port,
+              path: req.url,
+              headers: headers || undefined,
+              method: req.method,
+            };
+            const req2 = http.request(opts, (res2) => {
               res.status(res2.statusCode);
               res.setHeader('content-type', res2.headers['content-type']);
               let body = '';
@@ -204,7 +217,11 @@ class AuthServer {
               console.error(err);
               res.status(504).json({error: 'Device Unavailable', code: 504});
             });
-            req2.write(JSON.stringify(req.body));
+            if (req.body) {
+              req2.write(JSON.stringify(req.body));
+            } else {
+              req2.write();
+            }
             req2.end();
           });
         });

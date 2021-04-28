@@ -159,7 +159,7 @@ class PowerController {
         console.error(err);
       }
       try {
-        this._ledPin = new Gpio(config.led, 'in');
+        this._ledPin = new Gpio(config.led, 'in', 'both');
         this._ledPin.watch((...args) => this._ledStateChange(...args));
       } catch (err) {
         console.error(

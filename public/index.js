@@ -46,7 +46,7 @@ function handleClick(action) {
     case 'toggleState':
       if (currentInfo) {
         sendRequest(
-            'request-state', {state: !currentInfo.currentState},
+            'request-state', {state: !currentInfo.currentState ? 1 : 0},
             updateDeviceStatus);
       }
       break;
@@ -103,14 +103,14 @@ function refreshUI() {
       statusBox.style.backgroundColor = 'lime';
       statusText.textContent = 'On';
 
-      toggleStateButton.value = 'Off';
+      toggleStateButton.value = 'Turn Off';
       toggleStateButton.style.backgroundColor = 'red';
       break;
     case 0:
       statusBox.style.backgroundColor = 'red';
       statusText.textContent = 'Off';
 
-      toggleStateButton.value = 'On';
+      toggleStateButton.value = 'Turn On';
       toggleStateButton.style.backgroundColor = 'lime';
       break;
     default:
@@ -192,10 +192,11 @@ function sendRequest(action, data, onload, onfail) {
         'https://dev.campbellcrowley.com/pc2/api/' + action +
             (selectedDevice ? '/' + encodeURIComponent(selectedDevice) : ''));
     req.setRequestHeader("Authorization", token);
+    if (data) req.setRequestHeader('Content-Type', 'application/json');
     req.responseType = 'json';
     req.onload = onload;
     req.onerror = onfail;
-    req.send(data || undefined);
+    req.send(data ? JSON.stringify(data) : undefined);
   });
 }
 

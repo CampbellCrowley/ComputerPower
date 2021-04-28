@@ -109,8 +109,13 @@ class PowerServer {
     // All routes, logging.
     this._app.use((req, res, next) => {
       next();
-      console.log(
-          `${req.method} ${res.statusCode} ${req.originalUrl} FROM ${req.ip}`);
+      if (req.body) {
+        console.log(`${req.method} ${res.statusCode} ${req.originalUrl} FROM ${
+            req.ip} ${JSON.stringify(req.body)}`);
+      } else {
+        console.log(`${req.method} ${res.statusCode} ${req.originalUrl} FROM ${
+            req.ip}`);
+      }
     });
 
     // Homepage.
