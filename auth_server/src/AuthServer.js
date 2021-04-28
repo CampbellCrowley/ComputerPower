@@ -213,9 +213,14 @@ class AuthServer {
               });
             });
             req2.on('error', (err) => {
-              console.error(`Error while proxying request to ${url}`);
-              console.error(err);
-              res.status(504).json({error: 'Device Unavailable', code: 504});
+              console.error('Error while proxying request', opts);
+              if (err.code == 'ENOENT') {
+                res.status(504).json({error: 'Device Unavailable', code: 504});
+              } else {
+                console.error(err);
+                res.status(504).json(
+                    {error: 'Failed to Connect to Device', code: 504});
+              }
             });
             if (req.body) {
               req2.write(JSON.stringify(req.body));
