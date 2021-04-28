@@ -10,9 +10,9 @@ class AuthServer {
   /**
    * Create instance of AuthServer.
    * @param {number} [port=80] Port for server to listen on.
-   * @param {string} [address='0.0.0.0'] Address to bind to.
+   * @param {string} [address='127.0.0.1'] Address to bind to.
    */
-  constructor(port = 80, address = '0.0.0.0') {
+  constructor(port = 80, address = '127.0.0.1') {
     this._app = express();
     this._app.use(compression());
     this._app.use(bodyParser.json());
@@ -29,7 +29,7 @@ class AuthServer {
      * Address to listen on.
      * @private
      * @constant
-     * @default '0.0.0.0'
+     * @default '127.0.0.1'
      * @type {string}
      */
     this._address = address;
@@ -112,17 +112,18 @@ class AuthServer {
     this._app.get('/', (req, res) => res.send('Hello World!'));
 
     this._app.get('/get-devices', (req, res) => {
-      const authHeader = req.header.authorization;
+      const authHeader = req.headers.authorization;
 
       if (!authHeader) {
-        res.status(401).json({error: '401 Unauthorized.', code: 401});
+        res.status(401).json({error: '401 Unauthorized. No Token.', code: 401});
       } else {
         this._authenticator.verify(authHeader, (err, user) => {
           if (err) {
             res.status(err.code).json(err);
             return;
           } else if (!user) {
-            res.status(401).json({error: '401 Unauthorized.', code: 401});
+            res.status(401).json(
+                {error: '401 Unauthorized. Bad Token.', code: 401});
             return;
           }
           this._authenticator.getDevices(user.uid, (err, list) => {
@@ -155,7 +156,7 @@ class AuthServer {
    * @param {express.Response} res Response.
    */
   tryProxy(req, res) {
-    const authHeader = req.header.authorization;
+    const authHeader = req.headers.authorization;
     const did = req.query.dId;
 
     if (!authHeader) {

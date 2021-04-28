@@ -58,10 +58,10 @@ function updateDeviceStatus() {
     currentInfo = null;
 
     if (startId !== selectedDevice) return;
-    if (this.statusCode != 200) {
-      console.warn('get-info', this.statusCode, this.response);
+    if (this.status != 200) {
+      console.warn('get-info', this.status, this.response);
     } else {
-      console.log('get-info', this.statusCode, this.response);
+      console.log('get-info', this.status, this.response);
 
       currentInfo = this.response.data;
     }
@@ -72,7 +72,7 @@ function updateDeviceStatus() {
 
 function refreshUI() {
   var meta = getDeviceMeta(selectedDevice);
-  name = meta && meta.name || selectedDevice || 'No Device Selected';
+  name = meta && meta.dName || selectedDevice || 'No Device Selected';
   state = currentInfo.currentState
   summary = currentInfo.summary; // Graph data.
 
@@ -109,9 +109,9 @@ function refreshDeviceList() {
 
 function createDeviceButton(meta, isClickable) {
   var el = document.createElement('li');
-  el.name = meta.id;
-  el.textContent = meta.name;
-  if (meta.id === selectDevice) el.classList.add('selected');
+  el.name = meta.dId;
+  el.textContent = meta.dName;
+  if (meta.dId === selectDevice) el.classList.add('selected');
 
   if (isClickable) {
     el.href = '#';
@@ -124,7 +124,7 @@ function createDeviceButton(meta, isClickable) {
 }
 
 function getDeviceMeta(did) {
-  return deviceCache.find((el) => el.id === did);
+  return deviceCache.find((el) => el.dId === did);
 }
 
 function selectDevice(did) {
@@ -153,7 +153,7 @@ function sendRequest(action, data, onload, onfail) {
         'GET',
         'https://dev.campbellcrowley.com/pc2/api/' + action +
             '?did=' + selectedDevice);
-    req.setRequestHeader("Authenticator", token);
+    req.setRequestHeader("Authorization", token);
     req.responseType = 'json';
     req.onload = onload;
     req.onerror = onfail;
@@ -165,7 +165,7 @@ function onSignIn(authResult, redirectUrl) {
   console.log('Sign In:', authResult, redirectUrl);
   fetchUserInfo();
   // Return type determines whether we continue the redirect automatically.
-  return true;
+  return false;
 }
 
 function getIdToken(cb) {
@@ -185,11 +185,11 @@ function getIdToken(cb) {
 
 function fetchUserInfo() {
   sendRequest('get-devices', null, function() {
-    if (this.statusCode != 200) {
-      console.warn('get-devices', this.statusCode, this.response);
+    if (this.status != 200) {
+      console.warn('get-devices', this.status, this.response);
       return;
     }
-    console.log('get-devices', this.statusCode, this.response);
+    console.log('get-devices', this.status, this.response);
     deviceCache = this.response.data || [];
     refreshDeviceList();
   }, function() {
