@@ -24,12 +24,13 @@ ui.start('#firebase-auth', {
   },
 });
 
+var deviceCover = document.getElementById('deviceCover');
 var deviceList = document.getElementById('deviceList');
 var statusBox = document.getElementById('statusBox');
 var statusText = document.getElementById('statusText');
 var nameText = document.getElementById('nameText');
 
-var selectedDevice = '';
+var selectedDevice = null;
 var deviceCache = [];
 var currentInfo = null;
 
@@ -58,7 +59,9 @@ function updateDeviceStatus() {
     currentInfo = null;
 
     if (startId !== selectedDevice) return;
-    if (this.status != 200) {
+    if (this.status == 504) {
+      console.log('get-info', this.status, 'Device offline');
+    } else if (this.status != 200) {
       console.warn('get-info', this.status, this.response);
     } else {
       console.log('get-info', this.status, this.response);
@@ -73,8 +76,10 @@ function updateDeviceStatus() {
 function refreshUI() {
   var meta = getDeviceMeta(selectedDevice);
   name = meta && meta.dName || selectedDevice || 'No Device Selected';
-  state = currentInfo.currentState
-  summary = currentInfo.summary; // Graph data.
+  var state = currentInfo && currentInfo.currentState;
+  // var summary = currentInfo.summary; // Graph data.
+
+  deviceCover.style.display = meta ? '' : 'none';
 
   nameText.textContent = name;
 
@@ -95,29 +100,31 @@ function refreshUI() {
 }
 
 function refreshDeviceList() {
-  deviceList.innerHTML = '';
+  console.log(deviceCache);
+  while (deviceList.firstChild) deviceList.removeChild(deviceList.firstChild);
 
-  if (deviceCache.lenth > 0) {
+  if (deviceCache.length > 0) {
     deviceCache.forEach(function(el) {
       deviceList.appendChild(createDeviceButton(el, true));
     });
   } else {
     deviceList.appendChild(
-        createDeviceButton({id: 'placeholder', name: 'No Devices'}, false));
+        createDeviceButton({dId: 'placeholder', dName: 'No Devices'}, false));
   }
 }
 
 function createDeviceButton(meta, isClickable) {
   var el = document.createElement('li');
-  el.name = meta.dId;
+  el.setAttribute('name', meta.dId);
   el.textContent = meta.dName;
-  if (meta.dId === selectDevice) el.classList.add('selected');
+  if (meta.dId === selectedDevice) el.classList.add('selected');
 
   if (isClickable) {
     el.href = '#';
     el.onclick = function() {
-      selectDevice(el.name);
+      selectDevice(el.getAttribute('name'));
     };
+    el.style.cursor = 'pointer';
   }
 
   return el;
@@ -130,7 +137,7 @@ function getDeviceMeta(did) {
 function selectDevice(did) {
   var meta = getDeviceMeta(did);
   if (!meta) {
-    selectedDevice = '';
+    selectedDevice = null;
   } else {
     selectedDevice = did;
   }
@@ -152,7 +159,8 @@ function sendRequest(action, data, onload, onfail) {
     req.open(
         'GET',
         'https://dev.campbellcrowley.com/pc2/api/' + action +
-            '?did=' + selectedDevice);
+            (selectedDevice ? '?dId=' + encodeURIComponent(selectedDevice) :
+                              ''));
     req.setRequestHeader("Authorization", token);
     req.responseType = 'json';
     req.onload = onload;

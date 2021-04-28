@@ -134,12 +134,12 @@ class AuthServer {
     });
 
     // Proxy Routes.
-    this._app.get('/get-state', (...args) => this.tryProxy(...args));
-    this._app.get('/get-info', (...args) => this.tryProxy(...args));
-    this._app.get('/get-history', (...args) => this.tryProxy(...args));
-    this._app.post('/press-button', (...args) => this.tryProxy(...args));
-    this._app.post('/hold-button', (...args) => this.tryProxy(...args));
-    this._app.post('/request-state', (...args) => this.tryProxy(...args));
+    this._app.get('/get-state/:dId', (...args) => this.tryProxy(...args));
+    this._app.get('/get-info/:dId', (...args) => this.tryProxy(...args));
+    this._app.get('/get-history/:dId', (...args) => this.tryProxy(...args));
+    this._app.post('/press-button/:dId', (...args) => this.tryProxy(...args));
+    this._app.post('/hold-button/:dId', (...args) => this.tryProxy(...args));
+    this._app.post('/request-state/:dId', (...args) => this.tryProxy(...args));
 
     // All routes, fallback.
     this._app.use((req, res) => res.status(404).json({
@@ -157,13 +157,14 @@ class AuthServer {
    */
   tryProxy(req, res) {
     const authHeader = req.headers.authorization;
-    const did = req.query.dId;
+    let did = req.params.dId;
 
     if (!authHeader) {
       res.status(401).json({error: '401 Unauthorized.', code: 401});
     } else if (!did) {
-      res.status(401).json({error: '400 Bad Request.', code: 400});
+      res.status(400).json({error: '400 Bad Request.', code: 400});
     } else {
+      did = decodeURIComponent(did);
       this._authenticator.verify(authHeader, (err, user) => {
         if (err) {
           res.status(err.code).json(err);
@@ -201,8 +202,9 @@ class AuthServer {
             req2.on('error', (err) => {
               console.error(`Error while proxying request to ${url}`);
               console.error(err);
+              res.status(504).json({error: 'Device Unavailable', code: 504});
             });
-            req2.write(req.body);
+            req2.write(JSON.stringify(req.body));
             req2.end();
           });
         });
