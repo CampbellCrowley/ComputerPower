@@ -124,8 +124,13 @@ class PowerServer {
     });
     // Gets summary of current state info.
     this._app.get('/get-info', (req, res) => {
-      res.status(200).json(
-          {data: this._controller.history.getWeekSummary(), code: 200});
+      res.status(200).json({
+        data: {
+          summary: this._controller.history.getWeekSummary(),
+          currentState: this._controller.currentState,
+        },
+        code: 200
+      });
     });
     // Gets data history for graphing.
     this._app.get('/get-history', (req, res) => {

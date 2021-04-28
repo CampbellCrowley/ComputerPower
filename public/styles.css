@@ -18,6 +18,7 @@ body {
 
 #maincontainer {
   width: 100%;
+  display: flex;
 }
 
 #leftColumn {
@@ -25,10 +26,13 @@ body {
   float: left;
   width: 100%;
   height: 100%;
+  max-height: 100%;
   background: #EEE;
+  flex: 0 1 30%;
 }
 #rightColumn {
   display: inline-block;
+  flex: 1 1 70%;
 }
 
 #deviceList {
@@ -43,5 +47,64 @@ body {
 
 #deviceContainer {
   min-height: 500px;
-  padding: 1em;
+  position: relative;
+}
+
+#deviceCover {
+  padding: 3em;
+  font-size: 2em;
+  color: white;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: #444;
+  opacity: 0.75;
+  text-align: center;
+
+  /* display: none; */
+}
+
+#statusRow, #buttonRow, #graphRow {
+  margin-top: 1em;
+  margin-left: 1em;
+  padding: 0.5em;
+  font-size: 1.1em;
+}
+
+#statusBox {
+  border: 1px solid black;
+  background: #DDD;
+  padding: 0.5em;
+  margin-right: 1em;
+}
+#nameBox {
+  border: 1px solid black;
+  background: #F3F3F3;
+  padding: 0.5em;
+}
+#buttonRow input {
+  background: #FFF;
+  border: 1px solid black;
+  font-size: 1.1em;
+  margin-right: 1em;
+  padding: 0.5em;
+  cursor: pointer;
+}
+input#toggleStateButton {
+  background: lime;
+}
+input#pressResetButton {
+  background: orange;
+}
+input#pressPowerButton, input#holdPowerButton {
+  background: #DDD;
+}
+
+#graphRow {
+  min-height: 50px;
+  height: 100%;
+  background: #DDD;
+  margin-right: 1em;
+  text-align: center;
+  font-size: 1.25em;
 }
