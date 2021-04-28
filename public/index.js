@@ -39,25 +39,26 @@ var deviceCache = [];
 var currentInfo = null;
 
 function handleClick(action) {
-  switch(action) {
+  console.log('Click', action, typeof action);
+  switch (action) {
     case 'toggleState':
       if (currentInfo) {
         sendRequest(
             'request-state', {state: !currentInfo.currentState},
-            updateDeviceStatus());
+            updateDeviceStatus);
       }
       break;
     case 'pressReset':
-      sendRequest('press-button', {button: 'reset'}, updateDeviceStatus());
+      sendRequest('press-button', {button: 'reset'}, updateDeviceStatus);
       break;
     case 'pressPower':
-      sendRequest('press-button', {button: 'power'}, updateDeviceStatus());
+      sendRequest('press-button', {button: 'power'}, updateDeviceStatus);
       break;
     case 'holdPower':
-      sendRequest('hold-button', {button: 'power'}, updateDeviceStatus());
+      sendRequest('hold-button', {button: 'power'}, updateDeviceStatus);
       break;
     default:
-      return;
+      break;
   }
 }
 
@@ -157,6 +158,7 @@ function selectDevice(did) {
 }
 
 function sendRequest(action, data, onload, onfail) {
+  console.log('Request', action, data);
   getIdToken(function(err, token) {
     if (err) {
       console.error(err);
@@ -169,7 +171,7 @@ function sendRequest(action, data, onload, onfail) {
     }
     var req = new XMLHttpRequest();
     req.open(
-        'GET',
+        data ? 'POST' : 'GET',
         'https://dev.campbellcrowley.com/pc2/api/' + action +
             (selectedDevice ? '/' + encodeURIComponent(selectedDevice) : ''));
     req.setRequestHeader("Authorization", token);

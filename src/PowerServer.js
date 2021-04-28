@@ -117,13 +117,13 @@ class PowerServer {
     this._app.get('/', (req, res) => res.send('Hello World!'));
 
     // Returns current power state. Either On or Off.
-    this._app.get('/get-state', (req, res) => {
+    this._app.get(/\/get-state(.*)/, (req, res) => {
       const state = this._controller.currentState;
       res.status(200);
       res.json({data: state, code: 200});
     });
     // Gets summary of current state info.
-    this._app.get('/get-info', (req, res) => {
+    this._app.get(/\/get-info(.*)/, (req, res) => {
       res.status(200).json({
         data: {
           summary: this._controller.history.getWeekSummary(),
@@ -133,12 +133,12 @@ class PowerServer {
       });
     });
     // Gets data history for graphing.
-    this._app.get('/get-history', (req, res) => {
+    this._app.get(/\/get-history(.*)/', (req, res) => {
       res.status(200).json(
           {data: this._controller.history.getEventHistory(), code: 200});
     });
     // Request pressing of a button. Either power or reset.
-    this._app.post('/press-button', (req, res) => {
+    this._app.post(/\/press-button(.*)/, (req, res) => {
       if (!req.body) {
         res.status(400).json({error: 'Bad Request', code: 400});
       } else {
@@ -157,7 +157,7 @@ class PowerServer {
       }
     });
     // Request holding of a button. Either power or reset.
-    this._app.post('/hold-button', (req, res) => {
+    this._app.post(/\/hold-button(.*)/, (req, res) => {
       if (!req.body) {
         res.status(400).json({error: 'Bad Request', code: 400});
       } else {
@@ -176,7 +176,7 @@ class PowerServer {
       }
     });
     // Request the computer enter a certain power state. Either On or Off.
-    this._app.post('/request-state', (req, res) => {
+    this._app.post(/\/request-state(.*)/, (req, res) => {
       if (!req.body) {
         res.status(400).json({error: 'Bad Request', code: 400});
       } else {
