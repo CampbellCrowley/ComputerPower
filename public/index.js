@@ -33,6 +33,8 @@ var deviceList = document.getElementById('deviceList');
 var statusBox = document.getElementById('statusBox');
 var statusText = document.getElementById('statusText');
 var nameText = document.getElementById('nameText');
+var toggleStateButton = document.getElementById('toggleStateButton');
+var graphRow = document.getElementById('graphRow');
 
 var selectedDevice = null;
 var deviceCache = [];
@@ -90,7 +92,7 @@ function refreshUI() {
   var meta = getDeviceMeta(selectedDevice);
   name = meta && meta.dName || selectedDevice || 'No Device Selected';
   var state = currentInfo && currentInfo.currentState;
-  // var summary = currentInfo.summary; // Graph data.
+  var summary = currentInfo && currentInfo.summary; // Graph data.
 
   deviceCover.style.display = (meta === null) ? 'block' : 'none';
 
@@ -100,15 +102,30 @@ function refreshUI() {
     case 1:
       statusBox.style.backgroundColor = 'lime';
       statusText.textContent = 'On';
+
+      toggleStateButton.value = 'Off';
+      toggleStateButton.style.backgroundColor = 'red';
       break;
     case 0:
       statusBox.style.backgroundColor = 'red';
       statusText.textContent = 'Off';
+
+      toggleStateButton.value = 'On';
+      toggleStateButton.style.backgroundColor = 'lime';
       break;
     default:
       statusBox.style.backgroundColor = '#DDD';
       statusText.textContent = 'Unknown';
+
+      toggleStateButton.value = '...';
+      toggleStateButton.style.backgroundColor = '#DDD';
       break;
+  }
+
+  if (summary) {
+    graphRow.textContent = JSON.stringify(summary);
+  } else {
+    graphRow.textContent = 'Graph goes here eventually.';
   }
 }
 
