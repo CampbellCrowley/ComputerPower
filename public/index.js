@@ -24,6 +24,10 @@ ui.start('#firebase-auth', {
   },
 });
 
+var interval = setInterval(function() {
+  if (selectDevice) updateDeviceStatus();
+}, 10000);
+
 var deviceCover = document.getElementById('deviceCover');
 var deviceList = document.getElementById('deviceList');
 var statusBox = document.getElementById('statusBox');
@@ -37,12 +41,20 @@ var currentInfo = null;
 function handleClick(action) {
   switch(action) {
     case 'toggleState':
+      if (currentInfo) {
+        sendRequest(
+            'request-state', {state: !currentInfo.currentState},
+            updateDeviceStatus());
+      }
       break;
     case 'pressReset':
+      sendRequest('press-button', {button: 'reset'}, updateDeviceStatus());
       break;
     case 'pressPower':
+      sendRequest('press-button', {button: 'power'}, updateDeviceStatus());
       break;
     case 'holdPower':
+      sendRequest('hold-button', {button: 'power'}, updateDeviceStatus());
       break;
     default:
       return;
@@ -79,7 +91,7 @@ function refreshUI() {
   var state = currentInfo && currentInfo.currentState;
   // var summary = currentInfo.summary; // Graph data.
 
-  deviceCover.style.display = meta ? '' : 'none';
+  deviceCover.style.display = (meta === null) ? 'block' : 'none';
 
   nameText.textContent = name;
 
@@ -159,8 +171,7 @@ function sendRequest(action, data, onload, onfail) {
     req.open(
         'GET',
         'https://dev.campbellcrowley.com/pc2/api/' + action +
-            (selectedDevice ? '?dId=' + encodeURIComponent(selectedDevice) :
-                              ''));
+            (selectedDevice ? '/' + encodeURIComponent(selectedDevice) : ''));
     req.setRequestHeader("Authorization", token);
     req.responseType = 'json';
     req.onload = onload;
