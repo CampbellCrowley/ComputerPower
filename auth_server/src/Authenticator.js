@@ -79,15 +79,14 @@ class Authenticator {
   }
 
   /**
-   * Get all of the device IDs for a given user ID.
+   * Get all of the device for a given user ID.
    * @public
    * @param {string} uid User ID.
    * @param {basicCB} cb Callback once fetched or failed.
    */
-  getDeviceIds(uid, cb) {
-    const query = 'SELECT ?? FROM ?? WHERE ??=?';
-    const formatted =
-        sql.format(query, ['dId', databaseConfig.table, 'uId', uid]);
+  getDevices(uid, cb) {
+    const query = 'SELECT * FROM ?? WHERE ??=?';
+    const formatted = sql.format(query, [databaseConfig.table, 'uId', uid]);
 
     this._sqlCon.query(formatted, (err, res) => {
       if (err) {
@@ -96,9 +95,8 @@ class Authenticator {
         cb({code: 500, error: 'SQL Query Failure'});
         return;
       }
-      const flat = res.map((row) => row.dId);
-      console.log(flat);
-      cb(null, flat);
+      console.log(res);
+      cb(null, res);
     });
   }
 

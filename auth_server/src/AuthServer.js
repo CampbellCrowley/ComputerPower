@@ -111,6 +111,27 @@ class AuthServer {
     // Homepage.
     this._app.get('/', (req, res) => res.send('Hello World!'));
 
+    this._app.get('/get-devices', (req, res) => {
+      const authHeader = req.header.authorization;
+
+      if (!authHeader) {
+        res.status(401).json({error: '401 Unauthorized.', code: 401});
+      } else {
+        this._authenticator.verify(authHeader, (err, user) => {
+          if (err) {
+            res.status(err.code).json(err);
+            return;
+          } else if (!user) {
+            res.status(401).json({error: '401 Unauthorized.', code: 401});
+            return;
+          }
+          this._authenticator.getDevices(user.uid, (err, list) => {
+            res.status(200).json({data: list, message: 'Success!', code: 200});
+          });
+        });
+      }
+    });
+
     // Proxy Routes.
     this._app.get('/get-state', (...args) => this.tryProxy(...args));
     this._app.get('/get-info', (...args) => this.tryProxy(...args));
