@@ -177,15 +177,14 @@ class PowerHistory {
       let next = end;
       let diff = next - day[i].timestamp;
       for (let j = i + 1; j < day.length; j++) {
-        if (day[j].state == PowerState.OFF) {
+        if (day[j].state != PowerState.OFF) continue;
 
-          diff = day[j].timestamp - day[i].timestamp;
-          if (diff < totalMilliseconds) next = day[j].timestamp;
-          diff = day[j].timestamp - day[i].timestamp;
+        diff = day[j].timestamp - day[i].timestamp;
+        if (diff < totalMilliseconds) next = day[j].timestamp;
+        diff = next - day[i].timestamp;
 
-          i = j + 1;
-          break;
-        }
+        i = j;
+        break;
       }
       timeOn += diff;
     }

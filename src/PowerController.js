@@ -81,19 +81,20 @@ class PowerController {
     };
 
     /**
+     * The most recently read LED value to detect if state has changed.
+     * @private
+     * @type {number}
+     * @default
+     */
+    this._lastLEDValue = 0;
+
+    /**
      * Current power state inferred from the LED pin.
      * @private
      * @type {PowerState}
      * @default
      */
     this._currentState = PowerState.UNKNOWN;
-    /**
-     * Goal power state to attempt to achieve.
-     * @private
-     * @type {PowerStateGoal}
-     * @default
-     */
-    this._goalState = PowerStateGoal.UNKNOWN;
     /**
      * Timestamps at which pins were last set to high.
      * @private
@@ -239,15 +240,19 @@ class PowerController {
    * @param {number} value LED Pin value.
    */
   _ledStateChange(err, value) {
-    const inferredState = this.inferPowerState(value);
+    if (this._lastLEDValue != value) {
+      console.log(`LED state changed from ${this._lastLEDValue} to ${value}`);
+      clearTimeout(this._powerStateTimeout);
 
-    clearTimeout(this._powerStateTimeout);
-    if (inferredState !== this._currentState) {
-      setTimeout(() => {
-        this._currentState = inferredState;
-        this._handlePowerStateChange();
-      }, this._powerStateChangeDelay);
+      const inferredState = this.inferPowerState(value);
+      if (inferredState !== this._currentState) {
+        this._powerStateTimeout = setTimeout(() => {
+          this._currentState = inferredState;
+          this._handlePowerStateChange();
+        }, this._powerStateChangeDelay);
+      }
     }
+    this._lastLEDValue = value;
   }
   /**
    * Read the power state of the LED pin, and update accordingly. This is only
@@ -290,6 +295,7 @@ class PowerController {
    * @TODO: Implement sending notifications.
    */
   _handlePowerStateChange() {
+    console.log(`Power State Changed to ${this._currentState}`);
     this.history.createEvent(this.currentState);
   }
   /**
@@ -316,7 +322,8 @@ class PowerController {
       if (resetTime < nextTime && resetTime > now) nextTime = powerTime;
 
       if (nextTime > 0) {
-        setTimeout(() => this._checkButtonStates(), nextTime - now);
+        this._buttonReleaseTimeout =
+            setTimeout(() => this._checkButtonStates(), nextTime - now);
       }
       return;
     }
