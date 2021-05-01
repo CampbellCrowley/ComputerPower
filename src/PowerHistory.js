@@ -81,8 +81,11 @@ class PowerHistory {
         return;
       }
       try {
+        // TODO: Reduce copying.
         this._eventHistory = this._eventHistory.map((day, i) => {
-          return parsed[i].map((evt) => {
+          // Events from file plus events added during startup before the file
+          // was parsed.
+          return parsed[i].concat(this._eventHistory[i]).map((evt) => {
             return new PowerStateEvent(evt.timestamp, evt.state);
           });
         });
@@ -92,7 +95,7 @@ class PowerHistory {
         cb(err);
         return;
       }
-      cb(null, this._eventHistory);
+      this._saveFile((err) => cb(err, this._eventHistory));
     });
   }
 
@@ -166,15 +169,21 @@ class PowerHistory {
     let timeOn = 0;
     if (!day || !day.length) return timeOn;
 
-    // Timestamp at end of this day.
+    // Timestamp at end of this day potentially last week.
     const endDate = new Date(day[0].timestamp);
     endDate.setHours(23, 59, 59, 999);
     const end = endDate.getTime()
 
+    // End of this most recent day, or now if current day.
+    const endToday = new Date(day[day.length - 1].timestamp);
+    endToday.setHours(23, 59, 59, 999);
+    let endT = endToday.getTime();
+    if (endT > Date.now()) endT = Date.now();
+
     for (let i = 0; i < day.length; i++) {
       if (day[i].state != PowerState.ON) continue;
 
-      let next = end;
+      let next = day[i].timestamp < end ? end : endT;
       let diff = next - day[i].timestamp;
       for (let j = i + 1; j < day.length; j++) {
         if (day[j].state != PowerState.OFF) continue;

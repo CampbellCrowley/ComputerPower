@@ -85,7 +85,7 @@ class Authenticator {
    * @param {basicCB} cb Callback once fetched or failed.
    */
   getDevices(uid, cb) {
-    const query = 'SELECT * FROM ?? WHERE ??=?';
+    const query = 'SELECT * FROM ?? WHERE ??=? ORDER BY dName';
     const formatted = sql.format(query, [databaseConfig.table, 'uId', uid]);
 
     this._sqlCon.query(formatted, (err, res) => {

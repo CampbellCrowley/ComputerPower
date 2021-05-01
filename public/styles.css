@@ -106,3 +106,7 @@ input#pressPowerButton, input#holdPowerButton {
   text-align: center;
   font-size: 1.25em;
 }
+
+.selected {
+  background: #AAF;
+}

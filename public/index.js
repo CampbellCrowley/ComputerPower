@@ -12,17 +12,21 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 
 // Initialize the FirebaseUI Widget using Firebase.
-var ui = new firebaseui.auth.AuthUI(firebase.auth());
+firebase.auth()
+    .setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+    .then(() => {
+      var ui = new firebaseui.auth.AuthUI(firebase.auth());
 
-ui.start('#firebase-auth', {
-  signInOptions: [
-    // List of OAuth providers supported.
-    firebase.auth.GoogleAuthProvider.PROVIDER_ID,
-  ],
-  callbacks: {
-    signInSuccessWithAuthResult: onSignIn,
-  },
-});
+      ui.start('#firebase-auth', {
+        signInOptions: [
+          // List of OAuth providers supported.
+          firebase.auth.GoogleAuthProvider.PROVIDER_ID,
+        ],
+        callbacks: {
+          signInSuccessWithAuthResult: onSignIn,
+        },
+      });
+    });
 
 var interval = setInterval(function() {
   if (selectDevice) updateDeviceStatus();
@@ -167,7 +171,7 @@ function createGraph() {
 }
 function updateGraph(summary) {
   var percents = summary ?
-      summary.map((el) => Math.max(Math.min(Math.floor(el * 100)), 100), 0) :
+      summary.map((el) => Math.max(Math.min(Math.floor(el * 100), 100), 0)) :
       [0, 0, 0, 0, 0, 0, 0];
   graph.data.datasets[0].data = percents;
   graph.update();
@@ -191,6 +195,7 @@ function createDeviceButton(meta, isClickable) {
   var el = document.createElement('li');
   el.setAttribute('name', meta.dId);
   el.textContent = meta.dName;
+  el.classList.add('device-button');
   if (meta.dId === selectedDevice) el.classList.add('selected');
 
   if (isClickable) {
@@ -215,6 +220,13 @@ function selectDevice(did) {
   } else {
     selectedDevice = did;
   }
+
+  var deviceButtons = document.getElementsByClassName('device-button');
+  for (var i = 0; i< deviceButtons.lenth; i++) {
+    deviceButtons[i].classList.toggle(
+        'selected', deviceButtons[i].getAttribute('name') === did);
+  }
+
   updateDeviceStatus();
 }
 
@@ -247,6 +259,20 @@ function sendRequest(action, data, onload, onfail) {
 function onSignIn(authResult, redirectUrl) {
   console.log('Sign In:', authResult, redirectUrl);
   fetchUserInfo();
+
+  var userParent = document.getElementById('firebase-auth');
+  while (userParent.firstChild) userParent.removeChild(userParent.firstChild);
+  var signOutButton = document.createElement('input');
+  signOutButton.value = 'Sign Out';
+  signOutButton.type = 'button';
+  signOutButton.id = 'signOutButton';
+  signOutButton.onclick = function() {
+    console.log('Sign Out!');
+    firebase.auth().signOut();
+    location.refresh();
+  }
+  userParent.appendChild(signOutButton);
+
   // Return type determines whether we continue the redirect automatically.
   return false;
 }
