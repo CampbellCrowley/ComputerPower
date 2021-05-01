@@ -34,8 +34,9 @@ var statusBox = document.getElementById('statusBox');
 var statusText = document.getElementById('statusText');
 var nameText = document.getElementById('nameText');
 var toggleStateButton = document.getElementById('toggleStateButton');
-var graphRow = document.getElementById('graphRow');
+var graphCanvas = document.getElementById('graphCanvas');
 
+var graph = null;
 var selectedDevice = null;
 var deviceCache = [];
 var currentInfo = null;
@@ -123,10 +124,53 @@ function refreshUI() {
   }
 
   if (summary) {
-    graphRow.textContent = JSON.stringify(summary);
+    updateGraph(summary);
   } else {
-    graphRow.textContent = 'Graph goes here eventually.';
+    updateGraph(null);
   }
+}
+
+function createGraph() {
+  var ctx = graphCanvas.getContext('2d');
+  graph = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: [
+        'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday',
+        'Saturday'
+      ],
+      datasets: [{
+        label: '% Uptime',
+        data: [0, 0, 0, 0, 0, 0, 0],
+        backgroundColor: [
+          'rgba(255, 99, 132, 0.2)', 'rgba(54, 162, 235, 0.2)',
+          'rgba(255, 206, 86, 0.2)', 'rgba(75, 192, 192, 0.2)',
+          'rgba(153, 102, 255, 0.2)', 'rgba(255, 159, 64, 0.2)'
+        ],
+        borderColor: [
+          'rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)',
+          'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)',
+          'rgba(153, 102, 255, 1)', 'rgba(255, 159, 64, 1)'
+        ],
+        borderWidth: 1,
+      }]
+    },
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true,
+        }
+      },
+      responsive: true,
+    }
+  });
+}
+function updateGraph(summary) {
+  var percents = summary ?
+      summary.map((el) => Math.max(Math.min(Math.floor(el * 100)), 100), 0) :
+      [0, 0, 0, 0, 0, 0, 0];
+  graph.data.datasets[0].data = percents;
+  graph.update();
 }
 
 function refreshDeviceList() {
@@ -179,11 +223,11 @@ function sendRequest(action, data, onload, onfail) {
   getIdToken(function(err, token) {
     if (err) {
       console.error(err);
-      onfail();
+      if (onfail) onfail();
       return;
     } else if (!token) {
       console.log('NoToken');
-      onfail();
+      if (onfail) onfail();
       return;
     }
     var req = new XMLHttpRequest();
@@ -235,4 +279,6 @@ function fetchUserInfo() {
     refreshDeviceList();
   });
 }
+
 fetchUserInfo();
+createGraph();
