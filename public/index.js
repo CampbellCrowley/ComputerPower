@@ -222,7 +222,7 @@ function selectDevice(did) {
   }
 
   var deviceButtons = document.getElementsByClassName('device-button');
-  for (var i = 0; i< deviceButtons.lenth; i++) {
+  for (var i = 0; i < deviceButtons.length; i++) {
     deviceButtons[i].classList.toggle(
         'selected', deviceButtons[i].getAttribute('name') === did);
   }
@@ -262,6 +262,14 @@ function onSignIn(authResult, redirectUrl) {
 
   var userParent = document.getElementById('firebase-auth');
   while (userParent.firstChild) userParent.removeChild(userParent.firstChild);
+
+  var pfp = document.createElement('img');
+  pfp.src = authResult.user.photoURL;
+  pfp.style.height = '41px';
+  pfp.style.top = '15px';
+  pfp.style.position = 'relative';
+  userParent.appendChild(pfp);
+
   var signOutButton = document.createElement('input');
   signOutButton.value = 'Sign Out';
   signOutButton.type = 'button';
@@ -269,8 +277,8 @@ function onSignIn(authResult, redirectUrl) {
   signOutButton.onclick = function() {
     console.log('Sign Out!');
     firebase.auth().signOut();
-    location.refresh();
-  }
+    location.reload();
+  };
   userParent.appendChild(signOutButton);
 
   // Return type determines whether we continue the redirect automatically.
