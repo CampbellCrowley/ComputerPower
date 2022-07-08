@@ -315,11 +315,11 @@ class PowerController {
       const powerTime =
           this._pressTimes.power.start + this._pressTimes.power.duration;
       const resetTime =
-          this._pressTimes.reset.start - this._pressTimes.reset.duration;
+          this._pressTimes.reset.start + this._pressTimes.reset.duration;
       let nextTime = 0;
 
-      if (powerTime > now) nextTime = powerTime;
-      if (resetTime < nextTime && resetTime > now) nextTime = powerTime;
+      if (powerTime > 0) nextTime = powerTime;
+      if (resetTime < nextTime && resetTime > 0) nextTime = powerTime;
 
       if (nextTime > 0) {
         this._buttonReleaseTimeout =
