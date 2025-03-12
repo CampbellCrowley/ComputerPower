@@ -1,6 +1,7 @@
 // Campbell Crowley (web@campbellcrowley.com)
 // March 2021
-const onoff = require('onoff');
+// Updated for RPi5 March 2025
+const { Line, Chip } = require('node-libgpiod');
 const exec = require('child_process').exec;
 const config = require('../config/pinconfig.json');
 const PowerHistory = require('./PowerHistory.js');
@@ -46,13 +47,20 @@ class PowerController {
      */
     this._powerStateChangeDelay = 1000;
 
-
+    /**
+     * GPIO Chip to open the pins on. Configured in `../config/piconfig.json`
+     * Initialized in `start()`.
+     * @private
+     * @type {?Chip}
+     * @default
+     */
+     this._chip = null;
     /**
      * Power button GPIO (out) pin. Pin set in `../config/pinconfig.json`
      * Initialized in `start()`.
      * @private
      * @constant
-     * @type {?Gpio}
+     * @type {?Line}
      */
     this._powerPin = null;
     /**
@@ -60,7 +68,7 @@ class PowerController {
      * Initialized in `start()`.
      * @private
      * @constant
-     * @type {?Gpio}
+     * @type {?Line}
      */
     this._resetPin = null;
     /**
@@ -68,17 +76,9 @@ class PowerController {
      * Initialized in `start()`.
      * @private
      * @constant
-     * @type {?Gpio}
+     * @type {?Line}
      */
     this._ledPin = null;
-
-    this._fakePin = {
-      write: (_, cb) => cb(),
-      writeSync: () => {},
-      read: (cb) => cb(null, onoff.Gpio.LOW),
-      readSync: () => 0,
-      unexport: () => {},
-    };
 
     /**
      * The most recently read LED value to detect if state has changed.
@@ -137,43 +137,52 @@ class PowerController {
      * @default
      */
     this._powerStateTimeout = null;
+    /**
+     * Interval for polling input pins.
+     * @private
+     * @type {?Interval}
+     * @default
+     */
+     this._pollInterval = null;
   }
   /**
    * Start event loop and activate GPIO.
    * @public
    */
   start() {
-    const Gpio = onoff.Gpio;
-    if (Gpio.accessible) {
-      try {
-        this._powerPin = new Gpio(config.power, 'out');
-      } catch (err) {
-        console.error(
-            'Failed to export power pin! Writing states will not work.');
-        console.error(err);
-      }
-      try {
-        this._resetPin = new Gpio(config.reset, 'out');
-      } catch (err) {
-        console.error(
-            'Failed to export reset pin! Writing states will not work.');
-        console.error(err);
-      }
-      try {
-        this._ledPin = new Gpio(config.led, 'in', 'both');
-        this._ledPin.watch((...args) => this._ledStateChange(...args));
-      } catch (err) {
-        console.error(
-            'Failed to export LED pin! Reading states will not work.');
-        console.error(err);
-      }
-    } else {
-      console.error('GPIO is not accessible! Pins will be simulated.');
-      this._powerPin = this._fakePin;
-      this._resetPin = this._fakePin;
-      this._ledPin = this._fakePin;
+    try {
+      this._chip = new Chip(config.chip);
+    } catch (err) {
+      console.error(
+          'Failed to export GPIO Chip! Reading and writing states will not work.');
+      console.error(err);
+    }
+    try {
+      this._powerPin = new Line(this._chip, config.power);
+    } catch (err) {
+      console.error(
+          'Failed to export power pin! Writing states will not work.');
+      console.error(err);
+    }
+    try {
+      this._resetPin = new Line(this._chip, config.reset);
+    } catch (err) {
+      console.error(
+          'Failed to export reset pin! Writing states will not work.');
+      console.error(err);
+    }
+    try {
+      this._ledPin = new Line(this._chip, config.led);
+      this._ledPin.requestInputMode();
+    } catch (err) {
+      console.error(
+          'Failed to export LED pin! Reading states will not work.');
+      console.error(err);
     }
 
+    if (!this._pollInterval) {
+      this._pollInterval = setInterval(() => this._readPowerState(), 50);
+    }
     this._readPowerState();
   }
   /**
@@ -183,18 +192,16 @@ class PowerController {
   shutdown() {
     clearTimeout(this._powerStateTimeout);
     clearTimeout(this._buttonReleaseTimeout);
+    clearInterval(this._pollInterval);
     if (this._powerPin) {
-      this._powerPin.writeSync(onoff.Gpio.LOW);
-      this._powerPin.unexport();
+      this._powerPin.setValue(PowerState.OFF);
       this._powerPin = null;
     }
     if (this._resetPin) {
-      this._resetPin.writeSync(onoff.Gpio.LOW);
-      this._resetPin.unexport();
+      this._resetPin.setValue(PowerState.OFF);
       this._resetPin = null;
     }
     if (this._ledPin) {
-      this._ledPin.unexport();
       this._ledPin = null;
     }
   }
@@ -255,21 +262,20 @@ class PowerController {
     this._lastLEDValue = value;
   }
   /**
-   * Read the power state of the LED pin, and update accordingly. This is only
-   * used to get initial state after statup.
+   * Read the power state of the LED pin, and update accordingly.
    * @private
    */
   _readPowerState() {
-    this._ledPin.read((err, val) => {
-      if (err) {
-        console.error(err);
-        return;
-      }
-
-      const prevState = this._currentState;
-      this._currentState = this.inferPowerState(val);
-      if (this._currentState != prevState) this._handlePowerStateChange();
-    });
+    let val;
+    try {
+      val = this._ledPin.getValue();
+    } catch (err) {
+      console.error('Failed to read power state', err);
+      return;
+    }
+    const prevState = this._currentState;
+    this._currentState = this.inferPowerState(val);
+    if (this._currentState != prevState) this._handlePowerStateChange();
   }
   /**
    * Infer a PowerState from a given pin value.
@@ -330,15 +336,15 @@ class PowerController {
 
     if (times.start === 0 || times.duration === 0) return;
 
-     if (now - times.duration > times.start) {
-       times.duration = 0;
-       times.start = 0;
-       pin.write(onoff.Gpio.LOW, (err) => {
-         if (!err) return;
-         console.error('Failed to write pin low after duration.');
-         console.error(err);
-       });
-     }
+    if (now - times.duration > times.start) {
+      times.duration = 0;
+      times.start = 0;
+      try {
+        pin.setValue(PowerState.OFF);
+      } catch (err) {
+        console.error('Failed to set pin low', err);
+      }
+    }
   }
   /**
    * Press a button.
@@ -390,16 +396,15 @@ class PowerController {
 
     pressTime.start = Date.now();
     pressTime.duration = time * 1;
-    pin.write(onoff.Gpio.HIGH, (err) => {
-      if (err) {
-        console.error('Failed to write pin high.');
-        console.error(err);
-        cb({error: 'Failed to write pin state.', code: 500});
-      } else {
-        cb(null, {message: 'Success!', code: 200});
-      }
-      this._checkButtonStates();
-    });
+    try {
+      pin.setValue(PowerState.ON);
+    } catch (err) {
+      console.error('Failed to set pin high', err);
+      cb(null, {error: 'Failed to write pin state', code: 500});
+      return;
+    }
+    cb(null, {message: 'Success!', code: 200});
+    this._checkButtonStates();
   }
 }
 

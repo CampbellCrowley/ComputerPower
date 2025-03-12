@@ -1,5 +1,6 @@
 {
-  "power": 24,
-  "reset": 23,
-  "led": 25
+  "chip": 4,
+  "power": 18,
+  "reset": 16,
+  "led": 22
 }
